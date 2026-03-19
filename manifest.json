@@ -1,0 +1,27 @@
+{
+  "name": "Helix Industries — Operations Dashboard",
+  "short_name": "Helix Ops",
+  "description": "Daily & monthly inward, dispatch, and production tracking for Helix Industries.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1E2D3D",
+  "theme_color": "#1E2D3D",
+  "lang": "en-IN",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
