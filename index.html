@@ -284,14 +284,16 @@ tbody td:first-child{padding-left:20px}
 
 /* ── CHARTS ────────────────────────────────────────────────────── */
 .charts-section{padding:16px 20px 4px;border-bottom:1px solid var(--border);background:#FAFBFD}
-.charts-row{display:grid;gap:20px}
+.charts-row{display:grid;gap:16px}
 .charts-row.col2{grid-template-columns:1fr 1fr}
 .chart-box{background:var(--white);border:1px solid var(--border);
-  border-radius:var(--r-sm);padding:14px 16px 10px}
+  border-radius:var(--r-sm);padding:14px 16px 10px;overflow:hidden}
 .chart-title{font-size:9.5px;font-weight:700;letter-spacing:1.2px;
   text-transform:uppercase;color:var(--ink-lt);margin-bottom:10px}
-.chart-canvas-wrap{position:relative;width:100%}
-canvas{display:block;width:100%!important}
+/* chart-canvas-wrap: explicit block with width:100% so canvas always
+   inherits a real pixel width, not 0 from an unrendered flex child   */
+.chart-canvas-wrap{display:block;width:100%;overflow:hidden}
+canvas{display:block;max-width:100%}
 
 /* ── EMPTY / LOADING ───────────────────────────────────────────── */
 .empty{text-align:center;padding:52px 20px;color:var(--ink-lt)}
@@ -441,6 +443,7 @@ details .inner{font-size:11.5px;color:var(--ink-mid);line-height:1.8;
     <button class="nav-btn" data-tab="dd" onclick="switchTab(this)">Daily Dispatch</button>
     <button class="nav-btn" data-tab="md" onclick="switchTab(this)">Monthly Dispatch</button>
     <button class="nav-btn" data-tab="pr" onclick="switchTab(this)">Production</button>
+    <button class="nav-btn" data-tab="st" onclick="switchTab(this)">Stock</button>
   </nav>
 </div>
 
@@ -831,6 +834,7 @@ var S = {
   inward:     [],
   dispatch:   [],
   production: [],
+  stock:      [],
   errors:     {},
 
   // Per-register load status: true = sheet responded (even if 0 rows),
@@ -838,6 +842,7 @@ var S = {
   inwardLoaded:     false,
   dispatchLoaded:   false,
   productionLoaded: false,
+  stockLoaded:      false,
 
   // ── Daily Inward state ──
   diDate: dateToISO(today),   // Currently selected date for daily inward
@@ -860,6 +865,12 @@ var S = {
 
   // ── Production state ──
   xMac: null,                 // Currently open machine accordion
+
+  // ── Stock state ──
+  qSt:      '',              // Search query for stock tab
+  xSt_mac:  {},             // Expanded machine keys in stock table
+  xSt_prod: {},             // Expanded product keys in stock table
+  stockAsOf: '',            // "as of" date label from GAS response
 };
 
 // ── APPS SCRIPT CODE (embedded for copy/download) ───────────────────
@@ -908,6 +919,8 @@ var GAS_CODE = [
 'var INWARD_SHEET_ID     = "PASTE_INWARD_SPREADSHEET_ID_HERE";',
 'var DISPATCH_SHEET_ID   = "PASTE_DISPATCH_SPREADSHEET_ID_HERE";',
 'var PRODUCTION_SHEET_ID = "PASTE_PRODUCTION_SPREADSHEET_ID_HERE";',
+'// Stock sheet ID is hardcoded — it never changes',
+'var STOCK_SHEET_ID      = "1KXkWqKee_4TW0NR7MOSkncRO5xjz_NksD6d48tx9ZB4";',
 '',
 '/**',
 ' * Entry point — called by Google when the /exec URL is fetched.',
@@ -944,7 +957,8 @@ var GAS_CODE = [
 '    var sheetId =',
 '      register === "inward"     ? INWARD_SHEET_ID :',
 '      register === "dispatch"   ? DISPATCH_SHEET_ID :',
-'      register === "production" ? PRODUCTION_SHEET_ID : null;',
+'      register === "production" ? PRODUCTION_SHEET_ID :',
+'      register === "stock"      ? STOCK_SHEET_ID : null;',
 '',
 '    if (!sheetId) return { error: "Unknown register: " + register };',
 '',
@@ -957,6 +971,10 @@ var GAS_CODE = [
 '',
 '    // Production sheet has a special multi-date-column structure',
 '    if (register === "production") return readProductionSheet(sheet, tabName);',
+'',
+'    // Stock sheet has the same multi-date-column structure as Production.',
+'    // We always read the Closing column from the LATEST date available.',
+'    if (register === "stock") return readStockSheet(sheet, tabName);',
 '',
 '    // Standard flat sheet (Inward / Dispatch)',
 '    return readFlatSheet(sheet, tabName);',
@@ -1132,6 +1150,97 @@ var GAS_CODE = [
 '',
 '  return { data: data, tab: tabName, count: data.length };',
 '}',
+'',
+'/**',
+' * Read the Stock sheet (same multi-date-column structure as Production).',
+' *',
+' * Sheet layout:',
+' *   Row 1 : date headers — Date objects in columns where dates exist,',
+' *            empty cells elsewhere (Prod col, Disp col pairs per date).',
+' *   Row 2 : fixed column headers — Machine Name, Product, Thickness,',
+' *            Grade, Colour, Opening, Prod, Disp, … TP, TD, Closing.',
+' *   Row 3+: one row per machine/product/colour variant.',
+' *',
+' * Strategy: scan Row 1 to find the LATEST (rightmost) date, then',
+' * use the Closing column to get current stock levels.',
+' * This means we always show the most up-to-date closing stock,',
+' * regardless of which date was last entered.',
+' *',
+' * Only rows with Closing > 0 are returned (zero-stock lines omitted).',
+' */',
+'function readStockSheet(sheet, tabName) {',
+'  var tz   = Session.getScriptTimeZone();',
+'  var vals = sheet.getDataRange().getValues();',
+'  if (vals.length < 3) return { data: [], tab: tabName, count: 0 };',
+'',
+'  var dateRow   = vals[0];',
+'  var headerRow = vals[1];',
+'',
+'  // ── Find the Closing column index from Row 2 headers ──',
+'  // The "Closing" column is always the last fixed column and holds',
+'  // the running stock total after each day\'s production and dispatch.',
+'  var fc = { machine:-1, product:-1, thickness:-1, grade:-1, colour:-1, closing:-1 };',
+'  for (var h = 0; h < headerRow.length; h++) {',
+'    var hdr = String(headerRow[h] || "").trim().toLowerCase();',
+'    if (hdr === "machine name") fc.machine   = h;',
+'    if (hdr === "product")      fc.product   = h;',
+'    if (hdr === "thickness")    fc.thickness = h;',
+'    if (hdr === "grade")        fc.grade     = h;',
+'    if (hdr === "colour")       fc.colour    = h;',
+'    if (hdr === "closing")      fc.closing   = h;',
+'  }',
+'',
+'  // ── Find the latest date in Row 1 ──',
+'  // We look for the rightmost Date cell in Row 1.',
+'  // The Closing column reflects cumulative stock up to that date.',
+'  var latestDate = null;',
+'  var latestDateStr = "";',
+'  for (var c = 0; c < dateRow.length; c++) {',
+'    if (dateRow[c] instanceof Date) {',
+'      if (!latestDate || dateRow[c] > latestDate) {',
+'        latestDate = dateRow[c];',
+'        latestDateStr = Utilities.formatDate(dateRow[c], tz, "dd MMM yyyy");',
+'      }',
+'    }',
+'  }',
+'',
+'  // ── Build stock rows ──',
+'  var data = [];',
+'  var col  = function(idx) { return idx < 0 ? "" : (vals[0][idx] === null ? "" : ""); };',
+'',
+'  for (var r = 2; r < vals.length; r++) {',
+'    var row     = vals[r];',
+'    var hasData = row.some(function(v) { return v !== "" && v !== null && v !== undefined; });',
+'    if (!hasData) continue;',
+'',
+'    // Read Closing stock value',
+'    var closing = fc.closing >= 0 ? (parseFloat(row[fc.closing]) || 0) : 0;',
+'    if (closing <= 0) continue; // Skip zero-stock lines',
+'',
+'    var getCol = function(idx) {',
+'      if (idx < 0) return "";',
+'      var v = row[idx];',
+'      return (v === null || v === undefined) ? "" : String(v);',
+'    };',
+'',
+'    data.push({',
+'      "asOf":         latestDateStr,',
+'      "Machine Name": getCol(fc.machine),',
+'      "Product":      getCol(fc.product),',
+'      "Thickness":    getCol(fc.thickness),',
+'      "Grade":        getCol(fc.grade),',
+'      "Colour":       getCol(fc.colour),',
+'      "Closing":      closing',
+'    });',
+'  }',
+'',
+'  return {',
+'    data:  data,',
+'    tab:   tabName,',
+'    count: data.length,',
+'    asOf:  latestDateStr',
+'  };',
+'}',
 ].join('\n');
 
 // ── DATA NORMALISATION ───────────────────────────────────────────────
@@ -1181,6 +1290,19 @@ function normalPr(r) {
     tp:        parseFloat(r['TP']      || r.tp)      || 0,
     td:        parseFloat(r['TD']      || r.td)      || 0,
     closing:   parseFloat(r['Closing'] || r.closing) || 0,
+  };
+}
+
+/** Normalise a stock row from the Stock sheet (same layout as Production). */
+function normalStock(r) {
+  return {
+    asOf:      String(r['asOf']   || r['date']  || ''),
+    machine:   String(r['Machine Name'] || r.machine   || ''),
+    product:   String(r['Product']      || r.product   || ''),
+    thickness: String(r['Thickness']    || r.thickness || ''),
+    grade:     String(r['Grade']        || r.grade     || ''),
+    colour:    String(r['Colour'] || r['Color'] || r.colour || ''),
+    closing:   parseFloat(r['Closing']  || r.closing)  || 0,
   };
 }
 
@@ -1245,37 +1367,48 @@ async function loadData() {
     fetchTab(url, 'inward',     S.cfg.inwardTab),
     fetchTab(url, 'dispatch',   S.cfg.dispatchTab),
     fetchTab(url, 'production', S.cfg.productionTab),
+    // Stock always uses the current-month tab (e.g. "Mar-26").
+    // AUTO_PROD_TAB is computed at page load and auto-updates each month.
+    fetchTab(url, 'stock',      AUTO_PROD_TAB),
   ]);
 
-  // A fulfilled result with 0 rows means the sheet connected fine but has
-  // no data yet (e.g. holiday, data not uploaded). This is NOT an error.
-  // We only flag an error when the fetch itself rejected (network/script fault).
   if (res[0].status === 'fulfilled') {
-    S.inward      = res[0].value.map(normalIn);
+    S.inward       = res[0].value.map(normalIn);
     S.inwardLoaded = true;
   } else {
-    errs.inward   = res[0].reason ? res[0].reason.message : 'Could not load Inward data';
+    errs.inward    = res[0].reason ? res[0].reason.message : 'Could not load Inward data';
     S.inwardLoaded = false;
   }
 
   if (res[1].status === 'fulfilled') {
-    S.dispatch      = res[1].value.map(normalDis);
+    S.dispatch       = res[1].value.map(normalDis);
     S.dispatchLoaded = true;
   } else {
-    errs.dispatch   = res[1].reason ? res[1].reason.message : 'Could not load Dispatch data';
+    errs.dispatch    = res[1].reason ? res[1].reason.message : 'Could not load Dispatch data';
     S.dispatchLoaded = false;
   }
 
   if (res[2].status === 'fulfilled') {
-    S.production      = res[2].value.map(normalPr);
+    S.production       = res[2].value.map(normalPr);
     S.productionLoaded = true;
   } else {
-    errs.production   = res[2].reason ? res[2].reason.message : 'Could not load Production data';
+    errs.production    = res[2].reason ? res[2].reason.message : 'Could not load Production data';
     S.productionLoaded = false;
   }
 
+  if (res[3].status === 'fulfilled') {
+    S.stock       = res[3].value.map(normalStock);
+    S.stockLoaded = true;
+    // Capture the "as of" date sent back by the GAS script
+    S.stockAsOf   = res[3].value.length ? res[3].value[0].asOf : '';
+  } else {
+    errs.stock    = res[3].reason ? res[3].reason.message : 'Could not load Stock data';
+    S.stockLoaded = false;
+    S.stockAsOf   = '';
+  }
+
   S.errors      = errs;
-  S.isLive      = S.inwardLoaded || S.dispatchLoaded || S.productionLoaded;
+  S.isLive      = S.inwardLoaded || S.dispatchLoaded || S.productionLoaded || S.stockLoaded;
   S.lastRefresh = new Date();
   S.loading     = false;
   document.getElementById('ri').className = '';
@@ -1441,9 +1574,24 @@ function render() {
   else if (S.tab === 'dd') h += renderDailyDis();
   else if (S.tab === 'md') h += renderMonthlyDis();
   else if (S.tab === 'pr') h += renderProd();
+  else if (S.tab === 'st') h += renderStock();
 
   pg.innerHTML = h;
   drawCharts();
+
+  // ── Restore focus to stock search input after DOM rebuild ──
+  // When render() replaces innerHTML the input element is destroyed and
+  // recreated, causing the browser to move focus away. We restore it
+  // immediately so the user can keep typing without interruption.
+  if (S.tab === 'st') {
+    var si = document.getElementById('st-search');
+    if (si && document.activeElement !== si) {
+      // Place cursor at end of current value
+      var len = si.value.length;
+      si.focus();
+      try { si.setSelectionRange(len, len); } catch(e) {}
+    }
+  }
 }
 
 /**
@@ -2046,7 +2194,198 @@ function renderProd() {
   return h;
 }
 
-// ── CHART ENGINE (pure Canvas — no external library) ─────────────────
+// ── 6. STOCK ──────────────────────────────────────────────────────────
+/**
+ * Stock tab — flat searchable table of current closing stock.
+ * - No KPIs, no chart (per requirement)
+ * - Search works across Machine, Product, Thickness, Grade, Colour
+ * - When no search: grouped accordion  Machine → Product → variants
+ * - When searching: all matching rows shown flat (no need to expand)
+ * - Rows sorted by stock descending so highest stock is always first
+ * - "as of" date shown in header chip
+ */
+function renderStock() {
+  var q    = S.qSt.toLowerCase().trim();
+  var asOf = S.stockAsOf ? 'as of ' + S.stockAsOf : AUTO_PROD_TAB;
+
+  var h = '<div class="card">';
+  h += '<div class="card-head">'
+    + secTitle('Current Stock')
+    + '<span class="chip" style="background:var(--blue-bg);color:var(--blue);'
+    + 'border:1px solid var(--blue-bd);font-size:9px;font-weight:700;'
+    + 'letter-spacing:.6px;padding:3px 9px;border-radius:20px">'
+    + '📦 ' + esc(asOf) + '</span></div>';
+
+  // ── Not yet loaded ──
+  if (!S.stockLoaded) {
+    h += pendingNotice(
+      'Stock Data Not Available',
+      'The Stock sheet has not been loaded yet. Please refresh or check your connection.'
+    );
+    h += '</div>';
+    return h;
+  }
+
+  // ── No data in sheet at all ──
+  if (!S.stock.length) {
+    h += pendingNotice(
+      'No Stock Data Found',
+      'The Stock sheet (' + AUTO_PROD_TAB + ') is connected but all closing values are zero. '
+      + 'Data may not have been entered yet for this month.'
+    );
+    h += '</div>';
+    return h;
+  }
+
+  // ── Search bar — shown always ──
+  // Total from full dataset (not filtered) for the badge
+  var totalAll = S.stock.reduce(function(s,r){ return s + r.closing; }, 0);
+  h += '<div class="sbar">'
+    + '<input class="srch" id="st-search" placeholder="Search machine · product · colour · grade · thickness…" '
+    + 'value="' + esc(S.qSt) + '" oninput="stockSearch(this)"'
+    + ' autofocus/>'
+    + '<span class="rec-badge">'
+    + (q ? 'Showing results' : (ni(totalAll) + ' units total'))
+    + '</span></div>';
+
+  // ── Filter logic ──
+  // Search matches any of: machine, product, thickness, grade, colour
+  // Tokenised: each word in the query must appear somewhere in the row
+  var tokens = q ? q.split(/\s+/).filter(Boolean) : [];
+  var rows = S.stock.filter(function(r) {
+    if (!tokens.length) return true;
+    var haystack = (r.machine + ' ' + r.product + ' ' + r.thickness
+      + ' ' + r.grade + ' ' + r.colour).toLowerCase();
+    return tokens.every(function(tok){ return haystack.indexOf(tok) !== -1; });
+  });
+
+  // ── No search results ──
+  if (!rows.length) {
+    h += '<div class="empty"><span class="empty-ico">🔍</span>'
+      + 'No stock matching <strong>' + esc(S.qSt) + '</strong><br>'
+      + '<span style="font-size:12px;color:var(--ink-lt)">'
+      + 'Try searching by machine name, product, colour or grade.</span>'
+      + '</div>';
+    h += '</div>';
+    return h;
+  }
+
+  // Total for filtered set (used for % share)
+  var totalUnits = rows.reduce(function(s,r){ return s + r.closing; }, 0);
+
+  // ── SEARCH MODE: flat table — all matching rows visible immediately ──
+  if (tokens.length) {
+    // Sort flat results by closing stock descending
+    var flat = rows.slice().sort(function(a,b){ return b.closing - a.closing; });
+
+    h += '<div style="padding:8px 20px 4px;font-size:10px;color:var(--ink-lt)">'
+      + flat.length + ' variant' + (flat.length !== 1 ? 's' : '') + ' found'
+      + ' · ' + ni(totalUnits) + ' units total</div>';
+
+    h += '<div class="tw"><table>'
+      + '<thead><tr>'
+      + '<th>Machine</th><th>Product</th><th>Thickness</th>'
+      + '<th>Grade</th><th>Colour</th>'
+      + '<th class="r">Stock</th>'
+      + '</tr></thead><tbody>';
+
+    flat.forEach(function(r) {
+      h += '<tr>'
+        + '<td><span class="mach">' + esc(r.machine)   + '</span></td>'
+        + '<td class="td-bold">'    + esc(r.product)   + '</td>'
+        + '<td class="td-muted">'   + esc(r.thickness) + '</td>'
+        + '<td>' + (r.grade ? '<span class="grade">' + esc(r.grade) + '</span>' : '<span class="td-muted">—</span>') + '</td>'
+        + '<td>' + cpill(r.colour) + '</td>'
+        + '<td class="td-blue" style="font-family:\'Outfit\',sans-serif;font-weight:800;font-size:13px">'
+        + ni(r.closing) + '</td>'
+        + '</tr>';
+    });
+
+    h += '</tbody></table></div>';
+    h += '</div>';
+    return h;
+  }
+
+  // ── BROWSE MODE: accordion grouped Machine → Product → variants ──
+  var byMachine   = groupBy(rows, 'machine');
+  var machineKeys = Object.keys(byMachine).sort(function(a,b){
+    return sumBy(byMachine[b], 'closing') - sumBy(byMachine[a], 'closing');
+  });
+
+  h += '<div class="tw"><table>'
+    + '<thead><tr>'
+    + '<th style="min-width:160px">Machine / Product / Variant</th>'
+    + '<th>Grade</th><th>Thickness</th><th>Colour</th>'
+    + '<th class="r">Stock</th>'
+    + '</tr></thead><tbody>';
+
+  machineKeys.forEach(function(mac) {
+    var macRows  = byMachine[mac];
+    var macTotal = sumBy(macRows, 'closing');
+    var openM    = !!S.xSt_mac[mac];
+    var safeM    = esc(mac).replace(/'/g, "\\'");
+
+    // Level 1 — Machine row
+    h += '<tr class="gr-head" onclick="S.xSt_mac[\'' + safeM + '\']=!S.xSt_mac[\'' + safeM + '\'];render()">'
+      + '<td colspan="4"><span style="color:var(--gold);margin-right:8px;font-size:10px">'
+      + (openM ? '▾' : '▸') + '</span>'
+      + '<span class="mach">' + esc(mac) + '</span>'
+      + '<span class="td-muted" style="margin-left:8px;font-size:10px">'
+      + macRows.length + ' variant' + (macRows.length !== 1 ? 's' : '') + '</span></td>'
+      + '<td class="td-blue" style="font-family:\'Outfit\',sans-serif;font-weight:800">' + ni(macTotal) + '</td>'
+      + '</tr>';
+
+    if (!openM) return;
+
+    var byProd2  = groupBy(macRows, 'product');
+    var prodKeys = Object.keys(byProd2).sort(function(a,b){
+      return sumBy(byProd2[b], 'closing') - sumBy(byProd2[a], 'closing');
+    });
+
+    prodKeys.forEach(function(prod) {
+      var prodRows  = byProd2[prod];
+      var prodTotal = sumBy(prodRows, 'closing');
+      var prodKey   = mac + '§' + prod;
+      var openP     = !!S.xSt_prod[prodKey];
+      var safePK    = esc(prodKey).replace(/'/g, "\\'");
+
+      // Level 2 — Product row
+      h += '<tr class="gr-head2" onclick="S.xSt_prod[\'' + safePK + '\']=!S.xSt_prod[\'' + safePK + '\'];render()">'
+        + '<td colspan="4" style="padding-left:28px!important">'
+        + '<span style="color:var(--blue);margin-right:6px;font-size:10px">' + (openP ? '▾' : '▸') + '</span>'
+        + esc(prod)
+        + '<span class="td-muted" style="margin-left:8px;font-size:10px">'
+        + prodRows.length + ' colour' + (prodRows.length !== 1 ? 's' : '') + '</span></td>'
+        + '<td class="td-num">' + ni(prodTotal) + '</td>'
+        + '</tr>';
+
+      if (!openP) return;
+
+      // Level 3 — Colour + Thickness variant rows (sorted by stock desc)
+      prodRows.slice().sort(function(a,b){ return b.closing - a.closing; })
+        .forEach(function(r) {
+          h += '<tr style="background:#F9FAFF">'
+            + '<td style="padding-left:48px!important">' + cpill(r.colour) + '</td>'
+            + '<td>' + (r.grade ? '<span class="grade">' + esc(r.grade) + '</span>' : '<span class="td-muted">—</span>') + '</td>'
+            + '<td class="td-muted" style="font-style:italic">' + esc(r.thickness) + '</td>'
+            + '<td></td>'
+            + '<td style="text-align:right;font-family:\'Outfit\',sans-serif;font-weight:800;'
+            + 'font-size:13px;color:var(--slate)">' + ni(r.closing) + '</td>'
+            + '</tr>';
+        });
+    });
+  });
+
+  // Grand total row
+  h += '<tr class="gr-total"><td colspan="4">Total Stock</td>'
+    + '<td style="font-family:\'Outfit\',sans-serif;font-size:14px;font-weight:800;'
+    + 'color:var(--blue);text-align:right">' + ni(totalUnits) + '</td>'
+    + '</tr>';
+
+  h += '</tbody></table></div>';
+  h += '</div>';
+  return h;
+}
 /**
  * Draw a bar chart on a canvas element.
  *
@@ -2064,17 +2403,24 @@ function drawBar(id, labels, values, colors) {
   var canvas = document.getElementById(id);
   if (!canvas) return;
 
-  // Walk up DOM to find a container with a real rendered width
+  // Walk up DOM to find a container with a real rendered width.
+  // On mobile the card may not have reflowed yet, so we cap at
+  // innerWidth minus 2× page padding (48px) as a reliable fallback.
   var W = 0;
   var el = canvas.parentElement;
   while (el && W < 10) {
-    W = el.getBoundingClientRect().width || el.offsetWidth || el.clientWidth;
+    W = el.getBoundingClientRect().width || el.offsetWidth || 0;
     el = el.parentElement;
   }
-  if (W < 10) W = Math.min(window.innerWidth - 48, 600);
+  // Never exceed the viewport minus padding
+  var maxW = Math.max(120, window.innerWidth - 48);
+  if (W < 10 || W > maxW) W = maxW;
 
   var dpr = window.devicePixelRatio || 1;
   var H   = parseInt(canvas.getAttribute('height')) || 140;
+
+  // On very narrow screens reduce height so bars aren't clipped
+  if (window.innerWidth < 420 && H > 120) H = 120;
 
   canvas.width        = Math.round(W * dpr);
   canvas.height       = Math.round(H * dpr);
@@ -2087,15 +2433,19 @@ function drawBar(id, labels, values, colors) {
   if (!values || !values.length) return;
   var maxV = Math.max.apply(null, values) || 1;
 
-  // Layout padding
-  var pad = { t:14, r:10, b:38, l:10 };
+  // Reduce padding on narrow screens
+  var isMobile = window.innerWidth < 500;
+  var pad = { t:12, r:8, b: isMobile ? 30 : 38, l:8 };
   var cW  = W - pad.l - pad.r;
   var cH  = H - pad.t - pad.b;
   var n   = labels.length;
-  var bGap= Math.max(4, Math.floor(cW * 0.06 / n) + 3);
-  var bW  = Math.max(6, Math.floor((cW - bGap * (n + 1)) / n));
 
-  // Subtle horizontal grid lines
+  // Calculate bar width — ensure bars are always at least 4px wide
+  var totalGap = Math.max(2, Math.floor(cW * 0.04)) * (n + 1);
+  var bW = Math.max(4, Math.floor((cW - totalGap) / n));
+  var bGap = n > 1 ? Math.max(2, Math.floor((cW - bW * n) / (n + 1))) : 0;
+
+  // Subtle grid lines
   ctx.strokeStyle = '#EDF2F7';
   ctx.lineWidth   = 1;
   [0.25, 0.5, 0.75, 1].forEach(function(f) {
@@ -2109,9 +2459,9 @@ function drawBar(id, labels, values, colors) {
     var bH = Math.max(2, cH * v / maxV);
     var x  = pad.l + bGap + i * (bW + bGap);
     var y  = pad.t + cH - bH;
-    var r2 = Math.min(5, bW / 3);
+    var r2 = Math.min(4, bW / 3);
 
-    // Rounded top bar
+    // Rounded-top bar
     ctx.beginPath();
     ctx.moveTo(x + r2, y);
     ctx.lineTo(x + bW - r2, y);
@@ -2124,9 +2474,9 @@ function drawBar(id, labels, values, colors) {
     ctx.fillStyle = colors ? colors[i % colors.length] : PALETTE[i % PALETTE.length];
     ctx.fill();
 
-    // Value label above bar
-    if (bW >= 16) {
-      var fs = Math.min(10, Math.max(7, bW - 4));
+    // Value label above bar — only when bar is wide enough
+    if (bW >= 14) {
+      var fs = Math.min(9, Math.max(6, bW - 4));
       ctx.fillStyle    = '#3D5068';
       ctx.font         = 'bold ' + fs + 'px Plus Jakarta Sans,sans-serif';
       ctx.textAlign    = 'center';
@@ -2138,15 +2488,15 @@ function drawBar(id, labels, values, colors) {
       ctx.fillText(vLabel, x + bW/2, y - 2);
     }
 
-    // X-axis label below bar
-    if (bW >= 10) {
-      ctx.fillStyle    = '#7A90A4';
-      ctx.font         = '8px Plus Jakarta Sans,sans-serif';
-      ctx.textAlign    = 'center';
-      ctx.textBaseline = 'top';
-      var short = lbl.length > 12 ? lbl.substring(0, 11) + '…' : lbl;
-      ctx.fillText(short, x + bW/2, pad.t + cH + 5);
-    }
+    // X-axis label below bar — truncate aggressively on mobile
+    var labelFont = isMobile ? '7px' : '8px';
+    var maxChars  = isMobile ? 7 : 11;
+    ctx.fillStyle    = '#7A90A4';
+    ctx.font         = labelFont + ' Plus Jakarta Sans,sans-serif';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'top';
+    var short = lbl.length > maxChars ? lbl.substring(0, maxChars - 1) + '…' : lbl;
+    ctx.fillText(short, x + bW/2, pad.t + cH + 4);
   });
 }
 
@@ -2165,13 +2515,17 @@ function drawDonut(id, labels, values) {
   var W = 0;
   var el = canvas.parentElement;
   while (el && W < 10) {
-    W = el.getBoundingClientRect().width || el.offsetWidth || el.clientWidth;
+    W = el.getBoundingClientRect().width || el.offsetWidth || 0;
     el = el.parentElement;
   }
-  if (W < 10) W = Math.min(window.innerWidth - 48, 400);
+  var maxW = Math.max(120, window.innerWidth - 48);
+  if (W < 10 || W > maxW) W = maxW;
 
-  var dpr = window.devicePixelRatio || 1;
-  var H   = parseInt(canvas.getAttribute('height')) || 180;
+  var dpr      = window.devicePixelRatio || 1;
+  var isMobile = W < 360;
+
+  // On mobile: stack donut above legend — use more height
+  var H = isMobile ? 260 : (parseInt(canvas.getAttribute('height')) || 180);
 
   canvas.width        = Math.round(W * dpr);
   canvas.height       = Math.round(H * dpr);
@@ -2184,10 +2538,26 @@ function drawDonut(id, labels, values) {
   var total = (values || []).reduce(function(a,b){return a+b;},0);
   if (!total) return;
 
-  // Left portion for donut; right for legend
-  var donutSz = Math.min(W * 0.46, H - 16);
-  var cx = donutSz / 2 + 8;
-  var cy = H / 2;
+  var donutSz, cx, cy, legendX, legendY, legendW;
+
+  if (isMobile) {
+    // ── Stacked: donut centred at top, legend rows below ──
+    donutSz = Math.min(W * 0.7, 140);
+    cx = W / 2;
+    cy = donutSz / 2 + 10;
+    legendX = 8;
+    legendY = cy + donutSz / 2 + 14;
+    legendW = W - 16;
+  } else {
+    // ── Side by side: donut left, legend right ──
+    donutSz = Math.min(W * 0.46, H - 16);
+    cx = donutSz / 2 + 8;
+    cy = H / 2;
+    legendX = donutSz + 14;
+    legendY = Math.max(4, cy - (labels.length * 17) / 2);
+    legendW = W - legendX - 4;
+  }
+
   var R  = donutSz / 2 - 8;
   var IR = R * 0.56;
 
@@ -2213,42 +2583,40 @@ function drawDonut(id, labels, values) {
   ctx.fillStyle = '#fff';
   ctx.fill();
 
-  // Centre total label
+  // Centre total
   ctx.fillStyle    = '#1E2D3D';
-  ctx.font         = 'bold 12px Outfit,sans-serif';
+  ctx.font         = 'bold 11px Outfit,sans-serif';
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'middle';
   var tot = total >= 100000 ? (total/1000).toFixed(0)+'k'
           : total >= 10000  ? (total/1000).toFixed(0)+'k'
           : total >= 1000   ? (total/1000).toFixed(1)+'k'
           : String(total);
-  ctx.fillText(tot, cx, cy - 5);
+  ctx.fillText(tot, cx, cy - 4);
   ctx.fillStyle = '#7A90A4';
-  ctx.font      = '8px Plus Jakarta Sans,sans-serif';
+  ctx.font      = '7px Plus Jakarta Sans,sans-serif';
   ctx.fillText('total', cx, cy + 7);
 
-  // Legend
-  var lx  = donutSz + 16;
-  var lh  = 17;
-  var ly  = Math.max(4, cy - (labels.length * lh) / 2);
-  var avW = W - lx - 4; // Available width for legend text
-
+  // Legend items
+  var lh = isMobile ? 16 : 17;
   labels.forEach(function(lbl, i) {
-    var pct = (values[i] / total * 100).toFixed(0) + '%';
+    var pct   = (values[i] / total * 100).toFixed(0) + '%';
+    var ly    = legendY + i * lh;
+
+    // Colour swatch
     ctx.fillStyle = PALETTE[i % PALETTE.length];
     ctx.beginPath();
-    ctx.rect(lx, ly + i * lh + 3, 8, 8);
+    ctx.rect(legendX, ly + 3, 8, 8);
     ctx.fill();
 
+    // Label — truncate to fit legendW
+    var maxChars = Math.max(6, Math.floor(legendW / (isMobile ? 7 : 6.5)));
+    var short    = lbl.length > maxChars ? lbl.substring(0, maxChars - 1) + '…' : lbl;
     ctx.fillStyle    = '#3D5068';
-    ctx.font         = '9px Plus Jakarta Sans,sans-serif';
+    ctx.font         = (isMobile ? '8.5' : '9') + 'px Plus Jakarta Sans,sans-serif';
     ctx.textAlign    = 'left';
     ctx.textBaseline = 'top';
-
-    // Truncate label to fit available width
-    var maxChars = Math.max(6, Math.floor(avW / 6));
-    var short = lbl.length > maxChars ? lbl.substring(0, maxChars - 1) + '…' : lbl;
-    ctx.fillText(short + '  ' + pct, lx + 11, ly + i * lh + 3);
+    ctx.fillText(short + '  ' + pct, legendX + 12, ly + 3);
   });
 }
 
@@ -2360,6 +2728,44 @@ function switchTab(btn) {
   btn.classList.add('active');
   S.tab = btn.dataset.tab;
   render();
+}
+
+/**
+ * Stock search handler — called on every keystroke in the stock search input.
+ *
+ * WHY NOT oninput → render() directly:
+ *   render() replaces the entire pg.innerHTML, which destroys the input
+ *   element. The browser then moves focus to <body>, so after every
+ *   keystroke the cursor jumps out of the field. Even with the focus-
+ *   restore in render(), rebuilding the DOM on every single keypress
+ *   also feels janky on mobile.
+ *
+ * SOLUTION — two-part:
+ *   1. Update S.qSt immediately (so the value is always current).
+ *   2. Debounce render() by 350ms. The input keeps focus the entire time
+ *      because the DOM isn't touched until the user pauses typing.
+ *      If the user clears the field, render immediately (no delay needed).
+ *
+ * This means: type freely → see results 350ms after you stop → no cursor jump.
+ */
+var _stSearchTimer = null;
+function stockSearch(input) {
+  var val = input.value;
+  S.qSt       = val;
+  S.xSt_mac   = {};   // Reset accordion so search results are fully visible
+  S.xSt_prod  = {};
+
+  clearTimeout(_stSearchTimer);
+
+  if (val === '') {
+    // Cleared — render immediately, no debounce needed
+    render();
+  } else {
+    // Typing — wait 350ms after last keystroke before rebuilding DOM
+    _stSearchTimer = setTimeout(function() {
+      render();
+    }, 350);
+  }
 }
 
 // ── MODAL ──────────────────────────────────────────────────────────────
@@ -2496,8 +2902,8 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// Auto-refresh live data every 5 minutes
-setInterval(function(){ if (S.isLive) loadData(); }, 5 * 60 * 1000);
+// Auto-refresh live data every 10 minutes
+setInterval(function(){ if (S.isLive) loadData(); }, 10 * 60 * 1000);
 
 // Initialise header and render first view (no demo data — shows connect prompt if unconfigured)
 updateHeader();
