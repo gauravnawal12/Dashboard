@@ -1179,7 +1179,7 @@ var GAS_CODE = [
 '  // ── Find the Closing column index from Row 2 headers ──',
 '  // The "Closing" column is always the last fixed column and holds',
 '  // the running stock total after each day\'s production and dispatch.',
-'  var fc = { machine:-1, product:-1, thickness:-1, grade:-1, colour:-1, closing:-1 };',
+'  var fc = { machine:-1, product:-1, thickness:-1, grade:-1, colour:-1, closing:-1, sqft:-1 };',
 '  for (var h = 0; h < headerRow.length; h++) {',
 '    var hdr = String(headerRow[h] || "").trim().toLowerCase();',
 '    if (hdr === "machine name") fc.machine   = h;',
@@ -1188,6 +1188,9 @@ var GAS_CODE = [
 '    if (hdr === "grade")        fc.grade     = h;',
 '    if (hdr === "colour")       fc.colour    = h;',
 '    if (hdr === "closing")      fc.closing   = h;',
+'    // Sq. Ft. column — accept several common spellings',
+'    if (hdr === "sq. ft." || hdr === "sq.ft." || hdr === "sq ft" || hdr === "sqft")',
+'      fc.sqft = h;',
 '  }',
 '',
 '  // ── Find the latest date in Row 1 ──',
@@ -1206,22 +1209,25 @@ var GAS_CODE = [
 '',
 '  // ── Build stock rows ──',
 '  var data = [];',
-'  var col  = function(idx) { return idx < 0 ? "" : (vals[0][idx] === null ? "" : ""); };',
 '',
 '  for (var r = 2; r < vals.length; r++) {',
 '    var row     = vals[r];',
 '    var hasData = row.some(function(v) { return v !== "" && v !== null && v !== undefined; });',
 '    if (!hasData) continue;',
 '',
-'    // Read Closing stock value',
+'    // Read Closing stock value — skip rows with zero or no closing stock',
 '    var closing = fc.closing >= 0 ? (parseFloat(row[fc.closing]) || 0) : 0;',
-'    if (closing <= 0) continue; // Skip zero-stock lines',
+'    if (closing <= 0) continue;',
 '',
+'    // Helper to safely read a cell value as a string',
 '    var getCol = function(idx) {',
 '      if (idx < 0) return "";',
 '      var v = row[idx];',
 '      return (v === null || v === undefined) ? "" : String(v);',
 '    };',
+'',
+'    // Read Sq. Ft. directly from the row using the mapped column index',
+'    var sqft = fc.sqft >= 0 ? (parseFloat(row[fc.sqft]) || 0) : 0;',
 '',
 '    data.push({',
 '      "asOf":         latestDateStr,',
@@ -1230,7 +1236,8 @@ var GAS_CODE = [
 '      "Thickness":    getCol(fc.thickness),',
 '      "Grade":        getCol(fc.grade),',
 '      "Colour":       getCol(fc.colour),',
-'      "Closing":      closing',
+'      "Closing":      closing,',
+'      "Sq. Ft.":      sqft',
 '    });',
 '  }',
 '',
@@ -1303,6 +1310,7 @@ function normalStock(r) {
     grade:     String(r['Grade']        || r.grade     || ''),
     colour:    String(r['Colour'] || r['Color'] || r.colour || ''),
     closing:   parseFloat(r['Closing']  || r.closing)  || 0,
+    sqft:      parseFloat(r['Sq. Ft.']  || r['Sq.Ft.'] || r.sqft) || 0,
   };
 }
 
@@ -2284,20 +2292,23 @@ function renderStock() {
 
     h += '<div class="tw"><table>'
       + '<thead><tr>'
-      + '<th>Machine</th><th>Product</th><th>Thickness</th>'
-      + '<th>Grade</th><th>Colour</th>'
-      + '<th class="r">Stock</th>'
+      + '<th>Machine</th><th>Product</th><th>Colour</th>'
+      + '<th>Thickness</th><th>Grade</th>'
+      + '<th class="r">Stock (units)</th>'
+      + '<th class="r">Sq. Ft.</th>'
       + '</tr></thead><tbody>';
 
     flat.forEach(function(r) {
       h += '<tr>'
         + '<td><span class="mach">' + esc(r.machine)   + '</span></td>'
         + '<td class="td-bold">'    + esc(r.product)   + '</td>'
+        + '<td>'                    + cpill(r.colour)   + '</td>'
         + '<td class="td-muted">'   + esc(r.thickness) + '</td>'
         + '<td>' + (r.grade ? '<span class="grade">' + esc(r.grade) + '</span>' : '<span class="td-muted">—</span>') + '</td>'
-        + '<td>' + cpill(r.colour) + '</td>'
         + '<td class="td-blue" style="font-family:\'Outfit\',sans-serif;font-weight:800;font-size:13px">'
         + ni(r.closing) + '</td>'
+        + '<td class="td-num" style="color:var(--ink-mid)">'
+        + (r.sqft ? r.sqft.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—') + '</td>'
         + '</tr>';
     });
 
@@ -2314,25 +2325,30 @@ function renderStock() {
 
   h += '<div class="tw"><table>'
     + '<thead><tr>'
-    + '<th style="min-width:160px">Machine / Product / Variant</th>'
-    + '<th>Grade</th><th>Thickness</th><th>Colour</th>'
-    + '<th class="r">Stock</th>'
+    + '<th style="min-width:160px">Machine / Product / Colour</th>'
+    + '<th>Grade</th><th>Thickness</th>'
+    + '<th class="r">Stock (units)</th>'
+    + '<th class="r">Sq. Ft.</th>'
     + '</tr></thead><tbody>';
 
   machineKeys.forEach(function(mac) {
     var macRows  = byMachine[mac];
     var macTotal = sumBy(macRows, 'closing');
+    var macSqft  = sumBy(macRows, 'sqft');
     var openM    = !!S.xSt_mac[mac];
     var safeM    = esc(mac).replace(/'/g, "\\'");
 
-    // Level 1 — Machine row
+    // Level 1 — Machine row  (5 cols: label·grade·thick·stock·sqft)
     h += '<tr class="gr-head" onclick="S.xSt_mac[\'' + safeM + '\']=!S.xSt_mac[\'' + safeM + '\'];render()">'
-      + '<td colspan="4"><span style="color:var(--gold);margin-right:8px;font-size:10px">'
+      + '<td colspan="3"><span style="color:var(--gold);margin-right:8px;font-size:10px">'
       + (openM ? '▾' : '▸') + '</span>'
       + '<span class="mach">' + esc(mac) + '</span>'
       + '<span class="td-muted" style="margin-left:8px;font-size:10px">'
       + macRows.length + ' variant' + (macRows.length !== 1 ? 's' : '') + '</span></td>'
       + '<td class="td-blue" style="font-family:\'Outfit\',sans-serif;font-weight:800">' + ni(macTotal) + '</td>'
+      + '<td class="td-num" style="color:var(--ink-mid)">'
+      + (macSqft ? macSqft.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—')
+      + '</td>'
       + '</tr>';
 
     if (!openM) return;
@@ -2345,41 +2361,52 @@ function renderStock() {
     prodKeys.forEach(function(prod) {
       var prodRows  = byProd2[prod];
       var prodTotal = sumBy(prodRows, 'closing');
+      var prodSqft  = sumBy(prodRows, 'sqft');
       var prodKey   = mac + '§' + prod;
       var openP     = !!S.xSt_prod[prodKey];
       var safePK    = esc(prodKey).replace(/'/g, "\\'");
 
       // Level 2 — Product row
       h += '<tr class="gr-head2" onclick="S.xSt_prod[\'' + safePK + '\']=!S.xSt_prod[\'' + safePK + '\'];render()">'
-        + '<td colspan="4" style="padding-left:28px!important">'
+        + '<td colspan="3" style="padding-left:28px!important">'
         + '<span style="color:var(--blue);margin-right:6px;font-size:10px">' + (openP ? '▾' : '▸') + '</span>'
         + esc(prod)
         + '<span class="td-muted" style="margin-left:8px;font-size:10px">'
         + prodRows.length + ' colour' + (prodRows.length !== 1 ? 's' : '') + '</span></td>'
         + '<td class="td-num">' + ni(prodTotal) + '</td>'
+        + '<td class="td-num" style="color:var(--ink-lt)">'
+        + (prodSqft ? prodSqft.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—')
+        + '</td>'
         + '</tr>';
 
       if (!openP) return;
 
-      // Level 3 — Colour + Thickness variant rows (sorted by stock desc)
+      // Level 3 — Colour variant rows (colour shown inline in first cell)
+      // Sorted by closing stock descending
       prodRows.slice().sort(function(a,b){ return b.closing - a.closing; })
         .forEach(function(r) {
           h += '<tr style="background:#F9FAFF">'
             + '<td style="padding-left:48px!important">' + cpill(r.colour) + '</td>'
             + '<td>' + (r.grade ? '<span class="grade">' + esc(r.grade) + '</span>' : '<span class="td-muted">—</span>') + '</td>'
             + '<td class="td-muted" style="font-style:italic">' + esc(r.thickness) + '</td>'
-            + '<td></td>'
             + '<td style="text-align:right;font-family:\'Outfit\',sans-serif;font-weight:800;'
             + 'font-size:13px;color:var(--slate)">' + ni(r.closing) + '</td>'
+            + '<td class="td-num" style="color:var(--ink-mid)">'
+            + (r.sqft ? r.sqft.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—')
+            + '</td>'
             + '</tr>';
         });
     });
   });
 
   // Grand total row
-  h += '<tr class="gr-total"><td colspan="4">Total Stock</td>'
+  var totalSqft = rows.reduce(function(s,r){ return s + (r.sqft || 0); }, 0);
+  h += '<tr class="gr-total"><td colspan="3">Total Stock</td>'
     + '<td style="font-family:\'Outfit\',sans-serif;font-size:14px;font-weight:800;'
     + 'color:var(--blue);text-align:right">' + ni(totalUnits) + '</td>'
+    + '<td class="td-num" style="font-weight:700;color:var(--ink-mid)">'
+    + (totalSqft ? totalSqft.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—')
+    + '</td>'
     + '</tr>';
 
   h += '</tbody></table></div>';
@@ -2902,8 +2929,8 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// Auto-refresh live data every 10 minutes
-setInterval(function(){ if (S.isLive) loadData(); }, 10 * 60 * 1000);
+// Auto-refresh live data every 5 minutes
+setInterval(function(){ if (S.isLive) loadData(); }, 5 * 60 * 1000);
 
 // Initialise header and render first view (no demo data — shows connect prompt if unconfigured)
 updateHeader();
