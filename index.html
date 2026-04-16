@@ -371,7 +371,101 @@ details .inner{font-size:11.5px;color:var(--ink-mid);line-height:1.8;
   background:var(--slate-lt);border:1px solid var(--border);
   border-radius:var(--r-sm);padding:10px 12px;margin-top:6px}
 
-/* ── RESPONSIVE ────────────────────────────────────────────────── */
+/* ── AU ENTRY FORM ─────────────────────────────────────────────── */
+.au-wrap{
+  max-width:540px;margin:0 auto;
+}
+.au-card{
+  background:var(--white);border:1px solid var(--border);
+  border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden;
+  animation:riseIn .28s ease both;
+}
+.au-head{
+  background:linear-gradient(135deg,var(--slate) 0%,#2C4A65 100%);
+  padding:20px 24px;
+}
+.au-head-title{
+  font-family:'Outfit',sans-serif;font-size:15px;font-weight:800;
+  color:var(--white);letter-spacing:.5px;text-transform:uppercase;
+}
+.au-head-sub{
+  font-size:11px;color:rgba(255,255,255,.55);margin-top:3px;
+  letter-spacing:.3px;
+}
+.au-body{padding:24px 24px 20px;display:flex;flex-direction:column;gap:18px}
+.au-field{display:flex;flex-direction:column;gap:6px}
+.au-label{
+  font-size:9px;font-weight:700;letter-spacing:1.8px;
+  text-transform:uppercase;color:var(--ink-lt);
+}
+.au-label span{color:var(--red);margin-left:2px}
+.au-input, .au-select, .au-textarea{
+  background:var(--slate-lt);border:1.5px solid var(--border);
+  border-radius:var(--r-sm);padding:11px 14px;
+  font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;
+  color:var(--ink);outline:none;width:100%;
+  transition:border-color .18s,box-shadow .18s,background .18s;
+  appearance:none;-webkit-appearance:none;
+}
+.au-input:focus,.au-select:focus,.au-textarea:focus{
+  border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-lt);
+  background:var(--white);
+}
+.au-input::placeholder,.au-textarea::placeholder{color:var(--ink-lt)}
+.au-select{
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%237A90A4' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center;
+  padding-right:36px;cursor:pointer;
+}
+.au-select option{color:var(--ink)}
+.au-textarea{resize:vertical;min-height:90px;line-height:1.55}
+.au-amount-wrap{position:relative}
+.au-amount-wrap .au-prefix{
+  position:absolute;left:14px;top:50%;transform:translateY(-50%);
+  font-size:14px;font-weight:700;color:var(--ink-mid);
+  pointer-events:none;
+}
+.au-amount-wrap .au-input{padding-left:30px}
+.au-footer{
+  padding:16px 24px 20px;border-top:1px solid var(--border);
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+}
+.au-submit{
+  background:var(--slate);color:var(--white);border:none;
+  border-radius:var(--r-sm);padding:13px 28px;
+  font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;
+  font-weight:700;letter-spacing:.5px;text-transform:uppercase;
+  cursor:pointer;transition:all .18s;
+  display:inline-flex;align-items:center;gap:8px;
+}
+.au-submit:hover:not(:disabled){background:var(--gold);color:var(--slate)}
+.au-submit:disabled{opacity:.5;cursor:not-allowed}
+.au-submit .spin{font-size:14px}
+/* Result banners */
+.au-result{
+  border-radius:var(--r-sm);padding:10px 14px;
+  font-size:12.5px;font-weight:600;line-height:1.5;flex:1;min-width:0;
+}
+.au-result.ok{
+  background:var(--green-bg);color:var(--green);
+  border:1px solid var(--green-bd);
+}
+.au-result.err{
+  background:var(--red-bg);color:var(--red);
+  border:1px solid #FCBABA;
+}
+/* History table below form */
+.au-history{margin-top:16px}
+.au-history-title{
+  font-size:10px;font-weight:700;letter-spacing:1.5px;
+  text-transform:uppercase;color:var(--ink-lt);
+  padding:0 0 8px;
+}
+@media(max-width:600px){
+  .au-body{padding:16px 16px 12px;gap:14px}
+  .au-footer{padding:12px 16px 16px}
+  .au-input,.au-select,.au-textarea{font-size:16px} /* prevent iOS zoom */
+}
 @media(max-width:768px){
   :root{font-size:13px}
   .hdr{padding:0 12px;height:auto;min-height:50px;flex-wrap:wrap;
@@ -444,6 +538,7 @@ details .inner{font-size:11.5px;color:var(--ink-mid);line-height:1.8;
     <button class="nav-btn" data-tab="md" onclick="switchTab(this)">Monthly Dispatch</button>
     <button class="nav-btn" data-tab="pr" onclick="switchTab(this)">Production</button>
     <button class="nav-btn" data-tab="st" onclick="switchTab(this)">Stock</button>
+    <button class="nav-btn" data-tab="au" onclick="switchTab(this)">AU Entry</button>
   </nav>
 </div>
 
@@ -871,6 +966,9 @@ var S = {
   xSt_mac:  {},             // Expanded machine keys in stock table
   xSt_prod: {},             // Expanded product keys in stock table
   stockAsOf: '',            // "as of" date label from GAS response
+
+  // ── AU Entry state ──
+  auHistory: [],            // Last few submitted entries shown below form
 };
 
 // ── APPS SCRIPT CODE (embedded for copy/download) ───────────────────
@@ -921,6 +1019,8 @@ var GAS_CODE = [
 'var PRODUCTION_SHEET_ID = "PASTE_PRODUCTION_SPREADSHEET_ID_HERE";',
 '// Stock sheet ID is hardcoded — it never changes',
 'var STOCK_SHEET_ID      = "1KXkWqKee_4TW0NR7MOSkncRO5xjz_NksD6d48tx9ZB4";',
+'// AU Entry sheet ID is hardcoded — it never changes',
+'var AU_SHEET_ID         = "1AspDx-HFNHw02Zac_a8dGvoO8xGCao4Kb-3rEgeoxYU";',
 '',
 '/**',
 ' * Entry point — called by Google when the /exec URL is fetched.',
@@ -931,7 +1031,7 @@ var GAS_CODE = [
 '  var register = String(param.register || "").trim();',
 '  var tabName  = String(param.tab      || "").trim();',
 '  var callback = String(param.callback || "").trim();',
-'  var result   = run(register, tabName);',
+'  var result   = run(register, tabName, param);',
 '  var json     = JSON.stringify(result);',
 '  // Return JSONP if a callback name was supplied, plain JSON otherwise',
 '  if (callback) {',
@@ -946,10 +1046,13 @@ var GAS_CODE = [
 '',
 '/**',
 ' * Main dispatcher — routes to the correct sheet reader.',
-' * @param {string} register  "inward" | "dispatch" | "production" | "__ping__"',
+' * @param {string} register  "inward" | "dispatch" | "production" | "stock" | "au_entry" | "__ping__"',
 ' * @param {string} tabName   Exact sheet tab name e.g. "Inward", "Mar-26"',
+' * @param {Object} param     Full URL parameter object from doGet — needed for au_entry writes',
 ' */',
-'function run(register, tabName) {',
+'function run(register, tabName, param) {',
+'  // param defaults to empty object if not passed (defensive)',
+'  param = param || {};',
 '  // Ping — used by the dashboard to test the connection',
 '  if (register === "__ping__") return { ok: true, msg: "Connected!" };',
 '',
@@ -958,11 +1061,16 @@ var GAS_CODE = [
 '      register === "inward"     ? INWARD_SHEET_ID :',
 '      register === "dispatch"   ? DISPATCH_SHEET_ID :',
 '      register === "production" ? PRODUCTION_SHEET_ID :',
-'      register === "stock"      ? STOCK_SHEET_ID : null;',
+'      register === "stock"      ? STOCK_SHEET_ID :',
+'      register === "au_entry"   ? AU_SHEET_ID : null;',
 '',
 '    if (!sheetId) return { error: "Unknown register: " + register };',
 '',
 '    var ss    = SpreadsheetApp.openById(sheetId);',
+'',
+'    // AU Entry — write a new row, no tab name needed',
+'    if (register === "au_entry") return writeAuEntry(ss, param);',
+'',
 '    var sheet = ss.getSheetByName(tabName);',
 '    if (!sheet) {',
 '      var avail = ss.getSheets().map(function(s) { return s.getName(); }).join(", ");',
@@ -1247,6 +1355,64 @@ var GAS_CODE = [
 '    count: data.length,',
 '    asOf:  latestDateStr',
 '  };',
+'}',
+'',
+'/**',
+' * Write a new AU Entry row to the AU sheet.',
+' *',
+' * The sheet is expected to have (or will have created) these columns:',
+' *   Timestamp | Date | Entered By | Party Name | Amount | Remarks',
+' *',
+' * If the sheet is empty, a header row is created automatically.',
+' *',
+' * Parameters come from URL params (e) passed via JSONP GET:',
+' *   e.parameter.au_date       — date string e.g. "16 Apr 2026"',
+' *   e.parameter.au_enteredBy  — name of user',
+' *   e.parameter.au_party      — party name',
+' *   e.parameter.au_amount     — numeric amount',
+' *   e.parameter.au_remarks    — free text remarks',
+' *',
+' * Returns { ok: true, row: N } on success, { error: "..." } on failure.',
+' */',
+'function writeAuEntry(ss, param) {',
+'  try {',
+'    // Use the first sheet in the AU spreadsheet',
+'    var sheet = ss.getSheets()[0];',
+'    var tz    = Session.getScriptTimeZone();',
+'',
+'    // If sheet is completely empty, write a header row first',
+'    if (sheet.getLastRow() === 0) {',
+'      sheet.appendRow([',
+'        "Timestamp", "Date", "Entered By", "Party Name", "Amount", "Remarks"',
+'      ]);',
+'      // Format header row',
+'      var hRange = sheet.getRange(1, 1, 1, 6);',
+'      hRange.setFontWeight("bold");',
+'      hRange.setBackground("#1E2D3D");',
+'      hRange.setFontColor("#FFFFFF");',
+'    }',
+'',
+'    var timestamp  = Utilities.formatDate(new Date(), tz, "dd MMM yyyy HH:mm:ss");',
+'    var date       = String(param.au_date      || "").trim();',
+'    var enteredBy  = String(param.au_enteredBy || "").trim();',
+'    var party      = String(param.au_party     || "").trim();',
+'    var amount     = parseFloat(param.au_amount) || 0;',
+'    var remarks    = String(param.au_remarks   || "").trim();',
+'',
+'    // Basic validation',
+'    if (!enteredBy) return { error: "Entered By is required" };',
+'    if (!party)     return { error: "Party Name is required" };',
+'    if (!amount)    return { error: "Amount must be a non-zero number" };',
+'',
+'    // Append the data row',
+'    sheet.appendRow([timestamp, date, enteredBy, party, amount, remarks]);',
+'',
+'    var rowNum = sheet.getLastRow();',
+'    return { ok: true, row: rowNum, msg: "Entry saved successfully (row " + rowNum + ")" };',
+'',
+'  } catch (err) {',
+'    return { error: "Write failed: " + err.message };',
+'  }',
 '}',
 ].join('\n');
 
@@ -1583,6 +1749,7 @@ function render() {
   else if (S.tab === 'md') h += renderMonthlyDis();
   else if (S.tab === 'pr') h += renderProd();
   else if (S.tab === 'st') h += renderStock();
+  else if (S.tab === 'au') h += renderAuEntry();
 
   pg.innerHTML = h;
   drawCharts();
@@ -2413,13 +2580,292 @@ function renderStock() {
   h += '</div>';
   return h;
 }
+// ── 7. AU ENTRY ───────────────────────────────────────────────────────
+/**
+ * AU Entry tab — a standalone data entry form.
+ * Fields: Entered By (dropdown), Date (prefilled today), Party Name,
+ * Amount (numeric), Remarks (free text).
+ *
+ * On submit, the data is sent to the AU sheet via the existing JSONP
+ * GAS endpoint using GET params. The GAS writeAuEntry() function
+ * appends a new row to the first sheet of AU_SHEET_ID.
+ *
+ * Important: the form is rendered as a static HTML string but the
+ * submit handler (submitAuEntry) reads values directly from the DOM —
+ * it does NOT call render() on input, avoiding the cursor-jump problem.
+ * After a successful submit the form resets and a success toast is shown.
+ */
+function renderAuEntry() {
+  var h = '<div class="au-wrap">';
+
+  h += '<div class="au-card">';
+
+  // ── Card header ──
+  h += '<div class="au-head">'
+    + '<div class="au-head-title">AU Entry</div>'
+    + '<div class="au-head-sub">Record a new entry · data saved directly to Google Sheets</div>'
+    + '</div>';
+
+  h += '<div class="au-body">';
+
+  // ── Entered By (dropdown) ──
+  h += '<div class="au-field">'
+    + '<label class="au-label">Entered By <span>*</span></label>'
+    + '<select class="au-select" id="au-enteredBy">'
+    + '<option value="">— Select —</option>'
+    + '<option value="Gaurav">Gaurav</option>'
+    + '<option value="Saurabh">Saurabh</option>'
+    + '</select>'
+    + '</div>';
+
+  // ── Date (prefilled to today, editable) ──
+  h += '<div class="au-field">'
+    + '<label class="au-label">Date <span>*</span></label>'
+    + '<input type="date" class="au-input" id="au-date"'
+    + ' value="' + dateToISO(today) + '"'
+    + ' max="' + dateToISO(today) + '">'
+    + '</div>';
+
+  // ── Party Name ──
+  h += '<div class="au-field">'
+    + '<label class="au-label">Party Name <span>*</span></label>'
+    + '<input type="text" class="au-input" id="au-party"'
+    + ' placeholder="Enter party name" autocomplete="organization">'
+    + '</div>';
+
+  // ── Amount (numeric only) ──
+  h += '<div class="au-field">'
+    + '<label class="au-label">Amount <span>*</span></label>'
+    + '<div class="au-amount-wrap">'
+    + '<span class="au-prefix">₹</span>'
+    + '<input type="number" class="au-input" id="au-amount"'
+    + ' placeholder="0" min="0" step="0.01"'
+    + ' inputmode="decimal">'
+    + '</div>'
+    + '</div>';
+
+  // ── Remarks ──
+  h += '<div class="au-field">'
+    + '<label class="au-label">Remarks</label>'
+    + '<textarea class="au-textarea" id="au-remarks"'
+    + ' placeholder="Optional notes or details…" rows="3"></textarea>'
+    + '</div>';
+
+  h += '</div>'; // end .au-body
+
+  // ── Footer with submit button + result area ──
+  h += '<div class="au-footer">'
+    + '<button class="au-submit" id="au-submit-btn" onclick="submitAuEntry()">'
+    + '<span id="au-btn-icon">✓</span> Submit Entry'
+    + '</button>'
+    + '<div id="au-result" style="display:none" class="au-result"></div>'
+    + '</div>';
+
+  h += '</div>'; // end .au-card
+
+  // ── Recent entries (shown after first submission) ──
+  if (S.auHistory.length) {
+    h += '<div class="au-history">'
+      + '<div class="au-history-title">Recent entries this session</div>'
+      + '<div class="card" style="overflow:hidden">'
+      + '<div class="tw"><table>'
+      + '<thead><tr>'
+      + '<th>Entered By</th><th>Date</th><th>Party</th>'
+      + '<th class="r">Amount</th><th>Remarks</th>'
+      + '</tr></thead><tbody>';
+
+    // Show most recent first
+    S.auHistory.slice().reverse().forEach(function(e) {
+      h += '<tr>'
+        + '<td class="td-bold">' + esc(e.enteredBy) + '</td>'
+        + '<td class="td-muted">' + esc(e.date) + '</td>'
+        + '<td>' + esc(e.party) + '</td>'
+        + '<td class="td-green">₹' + parseFloat(e.amount).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}) + '</td>'
+        + '<td class="td-muted">' + esc(e.remarks || '—') + '</td>'
+        + '</tr>';
+    });
+
+    h += '</tbody></table></div></div></div>';
+  }
+
+  h += '</div>'; // end .au-wrap
+  return h;
+}
+
+/**
+ * Submit the AU Entry form.
+ *
+ * Reads values directly from the DOM (not from S state) so the form
+ * fields are never destroyed and recreated during input — no cursor jump.
+ *
+ * Validates required fields, then sends data to GAS via JSONP GET.
+ * On success: resets form, adds entry to S.auHistory, shows green toast.
+ * On failure: shows red toast, leaves form values intact for retry.
+ */
+function submitAuEntry() {
+  var url = S.cfg.scriptUrl;
+  if (!url) {
+    showAuResult(false, 'No Google Sheets connection configured. Click ⚡ Connect Sheets first.');
+    return;
+  }
+
+  // Read values from DOM
+  var enteredBy = (document.getElementById('au-enteredBy') || {}).value || '';
+  var dateISO   = (document.getElementById('au-date')      || {}).value || '';
+  var party     = ((document.getElementById('au-party')    || {}).value || '').trim();
+  var amountStr = ((document.getElementById('au-amount')   || {}).value || '').trim();
+  var remarks   = ((document.getElementById('au-remarks')  || {}).value || '').trim();
+
+  // ── Client-side validation ──
+  if (!enteredBy) { showAuResult(false, 'Please select who is entering this record.'); return; }
+  if (!dateISO)   { showAuResult(false, 'Date is required.');                          return; }
+  if (!party)     { showAuResult(false, 'Party Name is required.');                    return; }
+  var amount = parseFloat(amountStr);
+  if (!amountStr || isNaN(amount) || amount <= 0) {
+    showAuResult(false, 'Please enter a valid amount greater than zero.');
+    return;
+  }
+
+  // Convert YYYY-MM-DD → "16 Apr 2026" for the sheet
+  var dateFmt = isoToFmt(dateISO);
+
+  // ── Disable button + show loading ──
+  var btn = document.getElementById('au-submit-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin">↻</span> Saving…'; }
+  document.getElementById('au-result').style.display = 'none';
+
+  // ── JSONP call to GAS writeAuEntry ──
+  var base = url.trim().replace(/[?&].*$/, '');
+  var cb   = '_au_' + Date.now();
+  var timer, script;
+
+  timer = setTimeout(function() {
+    delete window[cb];
+    if (script && script.parentNode) script.parentNode.removeChild(script);
+    resetAuBtn();
+    showAuResult(false, 'Request timed out. Check your connection and try again.');
+  }, 15000);
+
+  window[cb] = function(data) {
+    clearTimeout(timer);
+    delete window[cb];
+    if (script && script.parentNode) script.parentNode.removeChild(script);
+    resetAuBtn();
+
+    if (data.error) {
+      showAuResult(false, 'Error: ' + data.error);
+      return;
+    }
+
+    // ── Success ──
+    // Add to in-session history
+    S.auHistory.push({
+      enteredBy: enteredBy,
+      date:      dateFmt,
+      party:     party,
+      amount:    amount,
+      remarks:   remarks,
+    });
+
+    // Reset form fields — keep Entered By prefilled for fast repeat entry
+    var partyEl   = document.getElementById('au-party');
+    var amountEl  = document.getElementById('au-amount');
+    var remarksEl = document.getElementById('au-remarks');
+    var dateEl    = document.getElementById('au-date');
+    if (partyEl)   partyEl.value   = '';
+    if (amountEl)  amountEl.value  = '';
+    if (remarksEl) remarksEl.value = '';
+    if (dateEl)    dateEl.value    = dateToISO(today);
+
+    showAuResult(true,
+      '✓ Entry saved successfully. ' + (data.msg || '')
+    );
+
+    // Rebuild just the history table below the form
+    // We use a targeted update instead of full render() to avoid
+    // resetting form fields that the user might be editing next
+    var wrap = document.querySelector('.au-history') || createHistoryEl();
+    renderHistoryTable(wrap);
+
+    // Auto-clear success message after 5 seconds
+    setTimeout(function() {
+      var r = document.getElementById('au-result');
+      if (r && r.classList.contains('ok')) r.style.display = 'none';
+    }, 5000);
+  };
+
+  script = document.createElement('script');
+  script.src = base
+    + '?register='       + encodeURIComponent('au_entry')
+    + '&tab='            + encodeURIComponent('')
+    + '&au_date='        + encodeURIComponent(dateFmt)
+    + '&au_enteredBy='   + encodeURIComponent(enteredBy)
+    + '&au_party='       + encodeURIComponent(party)
+    + '&au_amount='      + encodeURIComponent(amount)
+    + '&au_remarks='     + encodeURIComponent(remarks)
+    + '&callback='       + cb
+    + '&t='              + Date.now();
+  script.onerror = function() {
+    clearTimeout(timer);
+    delete window[cb];
+    resetAuBtn();
+    showAuResult(false, 'Script load failed — verify your /exec URL is correct.');
+  };
+  document.head.appendChild(script);
+}
+
+/** Show success/error result under the submit button */
+function showAuResult(ok, msg) {
+  var el = document.getElementById('au-result');
+  if (!el) return;
+  el.className = 'au-result ' + (ok ? 'ok' : 'err');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+/** Re-enable the submit button after a request completes */
+function resetAuBtn() {
+  var btn = document.getElementById('au-submit-btn');
+  if (btn) { btn.disabled = false; btn.innerHTML = '<span id="au-btn-icon">✓</span> Submit Entry'; }
+}
+
+/** Create the .au-history container if it doesn't exist yet */
+function createHistoryEl() {
+  var wrap = document.querySelector('.au-wrap');
+  if (!wrap) return null;
+  var div = document.createElement('div');
+  div.className = 'au-history';
+  wrap.appendChild(div);
+  return div;
+}
+
+/** Update the recent-entries history table in place without rebuilding the form */
+function renderHistoryTable(wrap) {
+  if (!wrap || !S.auHistory.length) return;
+  var h = '<div class="au-history-title">Recent entries this session</div>'
+    + '<div class="card" style="overflow:hidden">'
+    + '<div class="tw"><table>'
+    + '<thead><tr>'
+    + '<th>Entered By</th><th>Date</th><th>Party</th>'
+    + '<th class="r">Amount</th><th>Remarks</th>'
+    + '</tr></thead><tbody>';
+
+  S.auHistory.slice().reverse().forEach(function(e) {
+    h += '<tr>'
+      + '<td class="td-bold">' + esc(e.enteredBy) + '</td>'
+      + '<td class="td-muted">' + esc(e.date) + '</td>'
+      + '<td>' + esc(e.party) + '</td>'
+      + '<td class="td-green">₹' + parseFloat(e.amount).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}) + '</td>'
+      + '<td class="td-muted">' + esc(e.remarks || '—') + '</td>'
+      + '</tr>';
+  });
+
+  h += '</tbody></table></div></div>';
+  wrap.innerHTML = h;
+}
+
 /**
  * Draw a bar chart on a canvas element.
- *
- * CHART SIZING FIX: canvas.parentElement.clientWidth is 0 on first render
- * because the browser hasn't completed layout when rAF fires.
- * We walk up the DOM to find the first element with a real width,
- * and fall back to the page width minus padding if needed.
  *
  * @param {string}   id      Canvas element id
  * @param {string[]} labels  Bar labels
@@ -2929,8 +3375,8 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// Auto-refresh live data every 5 minutes
-setInterval(function(){ if (S.isLive) loadData(); }, 5 * 60 * 1000);
+// Auto-refresh live data every 15 minutes
+setInterval(function(){ if (S.isLive) loadData(); }, 15 * 60 * 1000);
 
 // Initialise header and render first view (no demo data — shows connect prompt if unconfigured)
 updateHeader();
