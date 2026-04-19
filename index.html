@@ -2,602 +2,992 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<!-- viewport: viewport-fit=cover extends into iOS notch/home-bar safe areas -->
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>Helix Industries — Operations Dashboard</title>
-
-<!-- ── PWA / HOME SCREEN META ──────────────────────────────────── -->
-<!-- Tells iOS Safari this page can be used as a standalone app    -->
+<title>Helix Industries — Operations</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
 <meta name="apple-mobile-web-app-title" content="Helix Ops"/>
-<!-- Android / Chrome PWA theme colour (matches --slate) -->
 <meta name="theme-color" content="#1E2D3D"/>
-<!-- Standard PWA manifest (separate file — see manifest.json)     -->
 <link rel="manifest" href="manifest.json"/>
-<!-- iOS home-screen icon (inline SVG encoded as data URI)         -->
-<!-- A proper icon is in manifest.json; this is the iOS fallback   -->
 <link rel="apple-touch-icon" href="icon-192.png"/>
-
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet"/>
 <style>
-/* ── PWA SAFE AREA (iOS notch + home bar) ───────────────────────
-   env(safe-area-inset-*) are CSS variables set by iOS/Android for
-   the physical screen edges. Without these, content hides behind
-   the notch or home indicator when in standalone PWA mode.       */
+/* ═══════════════════════════════════════════════════
+   HELIX INDUSTRIES — OPERATIONS DASHBOARD v2
+   Light theme — Plus Jakarta Sans + Outfit
+   ═══════════════════════════════════════════════════ */
+
+/* ── RESET ────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+/* ── DESIGN TOKENS ────────────────────────────────── */
+:root {
+  /* Brand */
+  --gold:    #E8A020;
+  --gold-lt: #FEF5E4;
+  --gold-mid:#FDECC0;
+  --gold-dk: #B87D14;
+  --slate:   #1E2D3D;
+  --slate-lt:#F0F4F8;
+  --slate-mid:#CBD5E1;
+
+  /* Ink */
+  --ink:     #0F1923;
+  --ink-mid: #3D5068;
+  --ink-lt:  #7A90A4;
+
+  /* Surfaces */
+  --white:   #FFFFFF;
+  --bg:      #F6F8FB;
+  --border:  #E4EBF2;
+  --card:    #FFFFFF;
+  --cardHi:  #F7FAFD;
+
+  /* Semantic */
+  --green:   #0F9E6E;
+  --greenBg: #E6F7F2;
+  --greenBd: #9DDEC8;
+  --red:     #D63030;
+  --redBg:   #FEF0F0;
+  --redBd:   #FCBABA;
+  --blue:    #1A6FC4;
+  --blueBg:  #EBF2FB;
+  --blueBd:  #B8D1F5;
+
+  /* Amber aliases used in v2 CSS → map to gold */
+  --amber:   #E8A020;
+  --amber2:  #F5B830;
+  --amberDim:#B87D14;
+  --amberBg: #FEF5E4;
+  --amberBd: #FDECC0;
+
+  /* Text */
+  --text:    #0F1923;
+  --text2:   #3D5068;
+  --text3:   #7A90A4;
+
+  /* Surfaces aliases */
+  --ink2:    #F0F4F8;
+  --ink3:    #E4EBF2;
+  --edge:    #CBD5E1;
+  --mute:    #7A90A4;
+  --dim:     #9BB5C8;
+  --ghost:   #CBD5E1;
+
+  /* Type */
+  --ff-display: 'Outfit', sans-serif;
+  --ff-body:    'Plus Jakarta Sans', sans-serif;
+  --ff-mono:    'Plus Jakarta Sans', sans-serif;
+
+  /* Radius */
+  --r:    12px;
+  --r-sm: 8px;
+  --r-lg: 16px;
+  font-size: 14px;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--ff-body);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 4px; height: 4px }
+::-webkit-scrollbar-track { background: transparent }
+::-webkit-scrollbar-thumb { background: var(--slate-mid); border-radius: 4px }
+
+/* ── PWA SAFE AREAS ───────────────────────────────── */
 .hdr {
   padding-top: max(0px, env(safe-area-inset-top));
-  padding-left: max(24px, calc(env(safe-area-inset-left) + 24px));
-  padding-right: max(24px, calc(env(safe-area-inset-right) + 24px));
+  padding-left: max(20px, calc(env(safe-area-inset-left) + 20px));
+  padding-right: max(20px, calc(env(safe-area-inset-right) + 20px));
 }
-/* Sticky nav sits below header so its top offset must also account
-   for the status bar height that now sits inside the header.      */
-.nav-wrap {
-  top: calc(58px + env(safe-area-inset-top));
+.bot-nav {
+  padding-bottom: max(0px, env(safe-area-inset-bottom));
 }
-/* Bottom-of-page padding so content isn't hidden by home bar     */
 .page {
-  padding-bottom: max(20px, calc(env(safe-area-inset-bottom) + 20px));
+  padding-bottom: max(16px, calc(env(safe-area-inset-bottom) + 72px));
 }
-/* In PWA standalone mode: hide address bar space, use full height */
 @media (display-mode: standalone) {
   html, body { height: 100%; }
 }
 
-/* ── RESET & CSS VARIABLES ─────────────────────────────────────── */
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --gold:#E8A020;--gold-lt:#FEF5E4;--gold-mid:#FDECC0;--gold-dk:#B87D14;
-  --slate:#1E2D3D;--slate-lt:#F0F4F8;--slate-mid:#CBD5E1;
-  --ink:#0F1923;--ink-mid:#3D5068;--ink-lt:#7A90A4;
-  --white:#FFFFFF;--bg:#F6F8FB;--border:#E4EBF2;
-  --green:#0F9E6E;--green-bg:#E6F7F2;--green-bd:#9DDEC8;
-  --red:#D63030;--red-bg:#FEF0F0;
-  --blue:#1A6FC4;--blue-bg:#EBF2FB;--blue-bd:#B8D1F5;
-  --r:12px;--r-sm:8px;
-  --shadow:0 2px 12px rgba(15,25,35,.07);
-  --shadow-md:0 6px 24px rgba(15,25,35,.10);
-  font-size:14px;
+/* ── HEADER ───────────────────────────────────────── */
+.hdr {
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  gap: 12px;
+  box-shadow: 0 1px 0 var(--border), 0 2px 12px rgba(15,25,35,.07);
 }
-html,body{height:100%;background:var(--bg);color:var(--ink);
-  font-family:'Plus Jakarta Sans',sans-serif;line-height:1.5}
-::-webkit-scrollbar{width:4px;height:4px}
-::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:var(--slate-mid);border-radius:4px}
+.hdr-l { display: flex; align-items: center; gap: 10px; min-width: 0 }
+.logo-mark {
+  flex-shrink: 0;
+  display: flex; align-items: center; gap: 10px;
+}
+.logo-hex {
+  width: 32px; height: 32px;
+}
+.brand-name {
+  font-family: var(--ff-display);
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--slate);
+  letter-spacing: .3px;
+  white-space: nowrap;
+  line-height: 1.1;
+}
+.brand-dept {
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--ink-lt);
+  margin-top: 2px;
+}
+.hdr-r { display: flex; align-items: center; gap: 8px; flex-shrink: 0 }
+.live-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--ff-body);
+  font-size: 10px; font-weight: 700;
+  letter-spacing: .7px; text-transform: uppercase;
+  padding: 4px 10px; border-radius: 20px;
+  border: 1px solid var(--greenBd);
+  background: var(--greenBg);
+  color: var(--green);
+}
+.demo-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--ff-body);
+  font-size: 10px; font-weight: 700;
+  letter-spacing: .7px; text-transform: uppercase;
+  padding: 4px 10px; border-radius: 20px;
+  border: 1px solid var(--gold-mid);
+  background: var(--gold-lt);
+  color: var(--gold-dk);
+}
+.pulse {
+  width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
+  animation: blink 2s ease infinite;
+}
+.pulse-g { background: var(--green) }
+.pulse-a { background: var(--amber) }
+@keyframes blink {
+  0%,100%{opacity:1;transform:scale(1)}
+  50%{opacity:.3;transform:scale(.7)}
+}
 
-/* ── HEADER ────────────────────────────────────────────────────── */
-.hdr{background:var(--white);border-bottom:1px solid var(--border);
-  padding:0 24px;min-height:58px;display:flex;align-items:center;
-  justify-content:space-between;position:sticky;top:0;z-index:200;
-  box-shadow:0 1px 0 var(--border),var(--shadow)}
-.hdr-l{display:flex;align-items:center;gap:11px}
-.logo{width:34px;height:34px;border-radius:9px;flex-shrink:0;
-  background:linear-gradient(135deg,var(--slate) 0%,#2C4A65 100%);
-  display:flex;align-items:center;justify-content:center;
-  box-shadow:0 2px 8px rgba(30,45,61,.25)}
-.logo svg{width:18px;height:18px}
-.brand{font-family:'Outfit',sans-serif;font-weight:800;font-size:15px;
-  color:var(--slate);letter-spacing:.5px;line-height:1.1}
-.brand span{color:var(--gold)}
-.brand-sub{font-size:9px;color:var(--ink-lt);letter-spacing:2px;text-transform:uppercase;margin-top:1px}
-.hdr-r{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.hdr-date{font-size:11.5px;color:var(--ink-lt);font-weight:500;padding-right:4px}
-.badge{display:inline-flex;align-items:center;gap:5px;font-size:10px;
-  font-weight:700;letter-spacing:.7px;text-transform:uppercase;padding:4px 10px;border-radius:20px}
-.badge-demo{background:var(--gold-lt);color:var(--gold-dk);border:1px solid var(--gold-mid)}
-.badge-live{background:var(--green-bg);color:var(--green);border:1px solid var(--green-bd)}
-.pulse{width:6px;height:6px;border-radius:50%;flex-shrink:0;animation:pulse 2s ease infinite}
-.pulse-amber{background:var(--gold-dk)}.pulse-green{background:var(--green)}
-@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.85)}}
-.btn{border:none;border-radius:var(--r-sm);padding:7px 13px;
-  font-family:'Plus Jakarta Sans',sans-serif;font-size:11px;font-weight:700;
-  cursor:pointer;letter-spacing:.5px;text-transform:uppercase;
-  transition:all .16s;display:inline-flex;align-items:center;gap:5px}
-.btn-primary{background:var(--slate);color:#fff}
-.btn-primary:hover{background:var(--gold);color:var(--slate)}
-.btn-ghost{background:transparent;color:var(--ink-mid);border:1px solid var(--border)}
-.btn-ghost:hover{border-color:var(--gold);color:var(--ink)}
+/* ── ICON BUTTONS ─────────────────────────────────── */
+.icon-btn {
+  width: 32px; height: 32px; border-radius: var(--r-sm);
+  background: var(--slate-lt); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 14px; color: var(--ink-mid);
+  transition: background .15s, border-color .15s;
+  flex-shrink: 0;
+}
+.icon-btn:hover { background: var(--gold-lt); border-color: var(--gold-mid); color: var(--gold-dk) }
+.icon-btn.spinning .spin-ico { animation: spin 1s linear infinite }
+@keyframes spin { to { transform: rotate(360deg) } }
+.spin-ico { display: inline-block }
 
-/* ── NAV ───────────────────────────────────────────────────────── */
-.nav-wrap{background:var(--white);border-bottom:1px solid var(--border);
-  position:sticky;top:58px;z-index:190}
-.nav{display:flex;padding:0 24px;overflow-x:auto;max-width:1440px;margin:0 auto}
-.nav::-webkit-scrollbar{height:0}
-.nav-btn{padding:13px 15px 11px;background:none;border:none;
-  border-bottom:3px solid transparent;
-  font-family:'Plus Jakarta Sans',sans-serif;font-size:11px;font-weight:700;
-  letter-spacing:.6px;text-transform:uppercase;color:var(--ink-lt);
-  cursor:pointer;transition:all .15s;white-space:nowrap}
-.nav-btn:hover{color:var(--ink-mid)}
-.nav-btn.active{color:var(--slate);border-bottom-color:var(--gold)}
+/* ── DESKTOP NAV (top, hidden on mobile) ──────────── */
+.top-nav-wrap {
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: calc(58px + env(safe-area-inset-top));
+  z-index: 190;
+}
+.top-nav {
+  display: flex;
+  overflow-x: auto;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+.top-nav::-webkit-scrollbar { height: 0 }
+.top-nav-btn {
+  padding: 13px 14px 11px;
+  background: none; border: none;
+  border-bottom: 3px solid transparent;
+  font-family: var(--ff-body); font-size: 11px; font-weight: 700;
+  letter-spacing: .6px; text-transform: uppercase;
+  color: var(--ink-lt); cursor: pointer;
+  transition: color .14s, border-color .14s;
+  white-space: nowrap; display: flex; align-items: center; gap: 6px;
+}
+.top-nav-btn:hover { color: var(--ink-mid) }
+.top-nav-btn.active { color: var(--slate); border-bottom-color: var(--gold) }
+.top-nav-btn .nb-icon { font-size: 13px; opacity: .75 }
 
-/* ── PAGE ──────────────────────────────────────────────────────── */
-.page{padding:20px 24px;display:flex;flex-direction:column;gap:16px;
-  max-width:1440px;width:100%;margin:0 auto}
+/* ── MOBILE BOTTOM NAV ────────────────────────────── */
+.bot-nav {
+  display: none;
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 300;
+  background: var(--white);
+  border-top: 1px solid var(--border);
+  grid-template-columns: repeat(7, 1fr);
+  align-items: stretch;
+  box-shadow: 0 -2px 12px rgba(15,25,35,.07);
+}
+.bot-btn {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 3px;
+  padding: 8px 2px;
+  background: none; border: none;
+  font-family: var(--ff-body); font-size: 7.5px; font-weight: 700;
+  letter-spacing: .5px; text-transform: uppercase;
+  color: var(--ink-lt); cursor: pointer;
+  transition: color .14s; position: relative;
+}
+.bot-btn .bi { font-size: 16px; transition: transform .15s }
+.bot-btn:hover .bi { transform: translateY(-2px) }
+.bot-btn.active { color: var(--slate) }
+.bot-btn.active::before {
+  content: '';
+  position: absolute; top: 0; left: 20%; right: 20%; height: 2px;
+  background: var(--gold); border-radius: 0 0 3px 3px;
+}
 
-/* ── BANNER ────────────────────────────────────────────────────── */
-.banner{border-radius:var(--r);padding:12px 16px;display:flex;
-  align-items:flex-start;gap:10px;border-left:4px solid var(--gold)}
-.banner-demo{background:var(--gold-lt)}
-.banner-err{background:var(--red-bg);border-left-color:var(--red)}
-.banner-ico{font-size:16px;flex-shrink:0;margin-top:1px}
-.banner-body{flex:1;font-size:12px;line-height:1.65;color:var(--ink-mid)}
-.banner-demo .banner-body{color:#7A5A10}
-.banner-err .banner-body{color:var(--red)}
+/* ── PAGE ─────────────────────────────────────────── */
+.page {
+  padding: 16px 20px;
+  display: flex; flex-direction: column; gap: 14px;
+  max-width: 1400px; width: 100%; margin: 0 auto;
+}
 
-/* ── SEC TITLE ─────────────────────────────────────────────────── */
-.sec-title{font-family:'Outfit',sans-serif;font-size:13px;font-weight:700;
-  color:var(--slate);letter-spacing:.5px;text-transform:uppercase;
-  display:flex;align-items:center;gap:8px}
-.sec-bar{width:3px;height:14px;border-radius:2px;background:var(--gold);flex-shrink:0}
+/* ── CARD ─────────────────────────────────────────── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+  animation: rise .24s ease both;
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px) }
+  to   { opacity: 1; transform: translateY(0) }
+}
+.card-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 18px; border-bottom: 1px solid var(--border);
+  background: var(--ink2); flex-wrap: wrap; gap: 8px;
+}
+.card-title {
+  font-family: var(--ff-mono); font-size: 9.5px; font-weight: 600;
+  letter-spacing: 1.8px; text-transform: uppercase;
+  color: var(--text3);
+  display: flex; align-items: center; gap: 8px;
+}
+.card-title::before {
+  content: '';
+  width: 2px; height: 12px;
+  background: var(--amber);
+  border-radius: 2px; flex-shrink: 0;
+}
 
-/* ── KPI ───────────────────────────────────────────────────────── */
-.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:10px}
-.kpi-card{background:var(--white);border:1px solid var(--border);
-  border-radius:var(--r);padding:15px 16px;position:relative;overflow:hidden;
-  border-top:3px solid var(--ac,var(--gold));transition:box-shadow .18s,transform .18s}
-.kpi-card:hover{box-shadow:var(--shadow-md);transform:translateY(-1px)}
-.kpi-label{font-size:9px;font-weight:700;letter-spacing:1.8px;
-  text-transform:uppercase;color:var(--ink-lt);margin-bottom:6px}
-.kpi-value{font-family:'Outfit',sans-serif;font-size:26px;font-weight:800;
-  color:var(--slate);line-height:1}
-.kpi-value sup{font-family:'Plus Jakarta Sans',sans-serif;font-size:11px;
-  font-weight:500;color:var(--ink-lt);margin-left:2px}
-.kpi-icon{position:absolute;right:10px;top:50%;transform:translateY(-50%);
-  font-size:30px;opacity:.06;pointer-events:none}
+/* ── KPI GRID ─────────────────────────────────────── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.kpi {
+  background: var(--card);
+  padding: 16px 18px;
+  display: flex; flex-direction: column; gap: 4px;
+  position: relative; overflow: hidden;
+  transition: background .15s;
+}
+.kpi:hover { background: var(--cardHi) }
+.kpi::after {
+  content: attr(data-icon);
+  position: absolute; right: 10px; top: 50%;
+  transform: translateY(-50%);
+  font-size: 28px; opacity: .06; pointer-events: none;
+}
+.kpi-label {
+  font-family: var(--ff-mono);
+  font-size: 8.5px; font-weight: 600;
+  letter-spacing: 1.6px; text-transform: uppercase;
+  color: var(--text3);
+}
+.kpi-value {
+  font-family: var(--ff-display);
+  font-size: 26px; font-weight: 400;
+  color: var(--text); line-height: 1;
+  transition: color .2s;
+}
+.kpi-value.amber { color: var(--amber) }
+.kpi-value.green { color: var(--green) }
+.kpi-value.blue  { color: var(--blue)  }
+.kpi-value.red   { color: var(--red)   }
+.kpi-sub {
+  font-family: var(--ff-mono); font-size: 9px;
+  color: var(--text3);
+}
+.kpi-trend {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-family: var(--ff-mono); font-size: 9px; font-weight: 600;
+  padding: 1px 6px; border-radius: 3px; margin-top: 2px;
+  width: fit-content;
+}
+.kpi-trend.up   { background: var(--greenBg); color: var(--green) }
+.kpi-trend.down { background: var(--redBg);   color: var(--red)   }
+.kpi-trend.neu  { background: var(--blueBg);  color: var(--blue)  }
 
-/* ── CARD ──────────────────────────────────────────────────────── */
-.card{background:var(--white);border:1px solid var(--border);
-  border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow);
-  animation:riseIn .28s ease both}
-@keyframes riseIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-.card-head{display:flex;align-items:center;justify-content:space-between;
-  padding:13px 18px;border-bottom:1px solid var(--border);
-  background:#FAFBFD;flex-wrap:wrap;gap:8px}
-.chip{font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;
-  padding:3px 9px;border-radius:20px;white-space:nowrap}
-.chip-today{background:var(--gold-lt);color:var(--gold-dk);border:1px solid var(--gold-mid)}
-.chip-month{background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-bd)}
-.chip-prod{background:var(--green-bg);color:var(--green);border:1px solid var(--green-bd)}
+/* ── CHIP ─────────────────────────────────────────── */
+.chip {
+  font-family: var(--ff-mono); font-size: 8.5px; font-weight: 600;
+  letter-spacing: .8px; text-transform: uppercase;
+  padding: 3px 9px; border-radius: 20px; white-space: nowrap;
+}
+.chip-amber { background: var(--amberBg); color: var(--amber); border: 1px solid var(--amberBd) }
+.chip-green { background: var(--greenBg); color: var(--green); border: 1px solid var(--greenBd) }
+.chip-blue  { background: var(--blueBg);  color: var(--blue);  border: 1px solid var(--blueBd)  }
+.chip-dim   { background: var(--slate-lt); color: var(--ink-lt); border: 1px solid var(--border) }
 
-/* ── DATE / MONTH PICKER BAR ───────────────────────────────────── */
-.picker-bar{
-  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
-  padding:11px 20px;border-bottom:1px solid var(--border);
-  background:#FAFBFD;
+/* ── PICKER BAR ───────────────────────────────────── */
+.picker-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 18px; border-bottom: 1px solid var(--border);
+  background: var(--ink2);
 }
-.picker-label{font-size:10px;font-weight:700;letter-spacing:1.2px;
-  text-transform:uppercase;color:var(--ink-lt);white-space:nowrap}
-.picker-input{
-  background:var(--white);border:1px solid var(--border);
-  border-radius:var(--r-sm);padding:6px 10px;
-  font-family:'Plus Jakarta Sans',sans-serif;font-size:12.5px;
-  color:var(--ink);outline:none;cursor:pointer;
-  transition:border-color .17s,box-shadow .17s;
+.picker-label {
+  font-family: var(--ff-mono); font-size: 8.5px; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--text3); white-space: nowrap;
 }
-.picker-input:focus{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-lt)}
-.picker-nav{display:flex;gap:4px}
-.picker-nav button{
-  width:28px;height:28px;border-radius:6px;border:1px solid var(--border);
-  background:var(--white);cursor:pointer;font-size:13px;color:var(--ink-mid);
-  display:flex;align-items:center;justify-content:center;transition:all .15s;
+.picker-nav { display: flex; gap: 4px }
+.picker-nav button {
+  width: 26px; height: 26px; border-radius: 5px;
+  border: 1px solid var(--edge); background: var(--ink3);
+  cursor: pointer; font-size: 12px; color: var(--text2);
+  display: flex; align-items: center; justify-content: center;
+  transition: all .14s;
 }
-.picker-nav button:hover{border-color:var(--gold);color:var(--gold-dk)}
-.picker-today-btn{
-  font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;
-  padding:4px 10px;border-radius:6px;border:1px solid var(--border);
-  background:var(--white);cursor:pointer;color:var(--ink-mid);
-  transition:all .15s;
+.picker-nav button:hover { border-color: var(--amber); color: var(--amber) }
+.picker-nav button:disabled { opacity: .3; cursor: not-allowed }
+.picker-input {
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 5px 9px;
+  font-family: var(--ff-body); font-size: 12px;
+  color: var(--ink); outline: none; cursor: pointer;
+  transition: border-color .16s, box-shadow .16s;
 }
-.picker-today-btn:hover{border-color:var(--gold);color:var(--gold-dk)}
-.picker-disp{font-size:13px;font-weight:700;color:var(--slate);min-width:100px}
+.picker-input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-lt) }
+.picker-disp {
+  font-size: 12.5px;
+  font-weight: 700; color: var(--slate);
+}
+.picker-today-btn {
+  font-family: var(--ff-mono); font-size: 8.5px; font-weight: 600;
+  letter-spacing: .5px; text-transform: uppercase;
+  padding: 4px 9px; border-radius: 5px;
+  border: 1px solid var(--amberBd); background: var(--amberBg);
+  color: var(--amber); cursor: pointer; transition: all .14s;
+}
+.picker-today-btn:hover { background: var(--amber); color: var(--ink) }
 
-/* ── SEARCH BAR ────────────────────────────────────────────────── */
-.sbar{padding:10px 18px;border-bottom:1px solid var(--border);
-  display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#FCFCFE}
-.srch{background:var(--white);border:1px solid var(--slate-mid);
-  border-radius:var(--r-sm);padding:7px 12px 7px 30px;
-  font-family:inherit;font-size:12.5px;color:var(--ink);
-  outline:none;width:230px;transition:all .17s;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%237A90A4' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E");
-  background-repeat:no-repeat;background-position:9px center}
-.srch::placeholder{color:var(--ink-lt)}
-.srch:focus{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-lt)}
-.rec-badge{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.5px;
-  background:var(--slate-lt);color:var(--ink-mid);border-radius:20px;
-  padding:2px 9px;border:1px solid var(--border);white-space:nowrap}
+/* ── SEARCH BAR ───────────────────────────────────── */
+.sbar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 9px 18px; border-bottom: 1px solid var(--border);
+  background: var(--ink2);
+}
+.srch {
+  background: var(--ink3); border: 1px solid var(--edge);
+  border-radius: var(--r-sm); padding: 7px 12px 7px 30px;
+  font-family: var(--ff-body); font-size: 12.5px;
+  color: var(--text); outline: none; flex: 1; min-width: 140px;
+  transition: border-color .16s;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='%235E7D94' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: 9px center;
+}
+.srch::placeholder { color: var(--text3) }
+.srch:focus { border-color: var(--amber) }
+.rec-badge {
+  font-family: var(--ff-mono); font-size: 9px; font-weight: 600;
+  background: var(--ink3); border: 1px solid var(--edge);
+  color: var(--text3); border-radius: 20px; padding: 2px 9px;
+  white-space: nowrap; margin-left: auto; flex-shrink: 0;
+}
 
-/* ── TABLE ─────────────────────────────────────────────────────── */
-.tw{overflow-x:auto;overflow-y:auto;max-height:420px}
-table{width:100%;border-collapse:collapse;font-size:12.5px}
-thead th{position:sticky;top:0;z-index:2;background:#F4F7FB;
-  padding:9px 14px;text-align:left;font-size:9px;font-weight:700;
-  letter-spacing:1.5px;text-transform:uppercase;color:var(--ink-lt);
-  border-bottom:1px solid var(--border);white-space:nowrap}
-thead th:first-child{padding-left:20px}
-thead th.r{text-align:right}
-tbody tr{border-bottom:1px solid #F0F4F8;transition:background .1s}
-tbody tr:hover{background:#F7FAFD}
-tbody td{padding:9px 14px;color:var(--ink);vertical-align:middle}
-tbody td:first-child{padding-left:20px}
-.td-muted{color:var(--ink-lt);font-size:12px}
-.td-bold{color:var(--slate);font-weight:700}
-.td-num{font-family:'Outfit',sans-serif;font-weight:700;font-size:13px;text-align:right;color:var(--slate)}
-.td-green{font-family:'Outfit',sans-serif;font-weight:700;font-size:13px;text-align:right;color:var(--green)}
-.td-gold{font-family:'Outfit',sans-serif;font-weight:700;font-size:13px;text-align:right;color:var(--gold-dk)}
-.td-blue{font-family:'Outfit',sans-serif;font-weight:700;font-size:13px;text-align:right;color:var(--blue)}
+/* ── TABLE ────────────────────────────────────────── */
+.tw { overflow-x: auto; overflow-y: auto; max-height: 420px }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px }
+thead th {
+  position: sticky; top: 0; z-index: 2;
+  background: #F4F7FB; padding: 9px 14px;
+  text-align: left;
+  font-family: var(--ff-body); font-size: 9px; font-weight: 700;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--ink-lt); border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+thead th:first-child { padding-left: 20px }
+thead th.r { text-align: right }
+tbody tr { border-bottom: 1px solid #F0F4F8; transition: background .1s }
+tbody tr:hover { background: #F7FAFD }
+tbody td { padding: 9px 14px; color: var(--ink); vertical-align: middle }
+tbody td:first-child { padding-left: 20px }
+.td-muted { color: var(--ink-lt); font-size: 12px }
+.td-bold  { color: var(--slate); font-weight: 600 }
+.td-mono  { font-size: 12px; color: var(--ink-mid) }
+.td-num   { font-size: 13px; font-weight: 700; text-align: right; color: var(--slate) }
+.td-amber { font-size: 13px; font-weight: 700; text-align: right; color: var(--gold-dk) }
+.td-green { font-size: 13px; font-weight: 700; text-align: right; color: var(--green) }
+.td-blue  { font-size: 13px; font-weight: 700; text-align: right; color: var(--blue)  }
 
-/* ── GROUP ROWS ────────────────────────────────────────────────── */
-.gr-head{cursor:pointer}
-.gr-head td{background:#F5F8FC;border-top:1px solid var(--border);
-  font-size:12px;font-weight:700;color:var(--slate);padding:9px 14px}
-.gr-head td:first-child{padding-left:20px}
-.gr-head:hover td{background:#EDF2F9}
-.gr-head2 td{background:#F9FAFB;cursor:pointer;
-  font-size:12px;font-weight:600;color:var(--ink-mid);padding:8px 14px}
-.gr-head2:hover td{background:#F2F5F9}
-.gr-sub td{background:#FCFCFF;color:var(--ink-mid);font-size:12px;padding:7px 14px}
-.gr-sub:hover td{background:#F5F7FF}
-.gr-total td{background:#F4F7FB;border-top:2px solid var(--slate-mid);
-  font-family:'Outfit',sans-serif;font-weight:700;font-size:12px;
-  color:var(--slate);padding:9px 14px}
-.gr-total td:first-child{padding-left:20px}
+/* ── GROUP ROWS ───────────────────────────────────── */
+.gr-head { cursor: pointer }
+.gr-head td {
+  background: #F5F8FC; border-top: 1px solid var(--border);
+  font-size: 12px; font-weight: 700; color: var(--slate);
+  padding: 9px 14px;
+}
+.gr-head td:first-child { padding-left: 20px }
+.gr-head:hover td { background: #EDF2F9 }
+.gr-head2 td {
+  background: #FAFBFD; cursor: pointer;
+  font-size: 12px; font-weight: 600; color: var(--ink-mid); padding: 8px 14px;
+}
+.gr-head2:hover td { background: #F2F5F9 }
+.gr-sub td { font-size: 12px; padding: 7px 14px; color: var(--ink-mid) }
+.gr-total td {
+  background: #F4F7FB; border-top: 2px solid var(--slate-mid);
+  font-weight: 700; font-size: 12px;
+  color: var(--slate); padding: 9px 14px;
+}
+.gr-total td:first-child { padding-left: 20px }
 
-/* ── MINI BAR ──────────────────────────────────────────────────── */
-.mbar-wrap{width:60px;height:4px;background:#E8EFF6;border-radius:3px;
-  display:inline-block;vertical-align:middle;margin-left:5px}
-.mbar-fill{height:4px;border-radius:3px;background:var(--gold)}
+/* ── MINI BAR ─────────────────────────────────────── */
+.mbar-wrap {
+  width: 50px; height: 3px; background: var(--border);
+  border-radius: 2px; display: inline-block; vertical-align: middle;
+  margin-left: 6px;
+}
+.mbar-fill { height: 3px; border-radius: 2px; background: var(--gold) }
 
-/* ── PILLS & CHIPS ─────────────────────────────────────────────── */
-.cpill{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--ink)}
-.cdot{width:8px;height:8px;border-radius:50%;flex-shrink:0;border:1px solid rgba(0,0,0,.08)}
-.grade{display:inline-block;padding:2px 7px;border-radius:4px;font-size:9px;
-  font-weight:700;letter-spacing:.8px;background:var(--green-bg);
-  color:var(--green);border:1px solid var(--green-bd)}
-.mach{display:inline-block;padding:2px 8px;border-radius:4px;font-size:9px;
-  font-weight:700;letter-spacing:.6px;background:var(--slate-lt);
-  color:var(--ink-mid);border:1px solid var(--border)}
+/* ── COLOUR PILL ──────────────────────────────────── */
+.cpill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--ink) }
+.cdot  { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(0,0,0,.08) }
 
-/* ── MACHINE ACCORDION ─────────────────────────────────────────── */
-.mac-block{border-bottom:1px solid var(--border)}
-.mac-block:last-child{border-bottom:none}
-.mac-head{display:flex;align-items:center;justify-content:space-between;
-  padding:14px 20px;cursor:pointer;transition:background .14s}
-.mac-head:hover{background:var(--slate-lt)}
-.mac-l{display:flex;align-items:center;gap:12px}
-.mac-icon{width:36px;height:36px;border-radius:10px;
-  background:linear-gradient(135deg,var(--slate-lt) 0%,var(--border) 100%);
-  border:1px solid var(--border);display:flex;align-items:center;
-  justify-content:center;font-size:16px;flex-shrink:0}
-.mac-name{font-family:'Outfit',sans-serif;font-size:13px;font-weight:800;
-  letter-spacing:.5px;text-transform:uppercase;color:var(--slate)}
-.mac-sub{font-size:11px;color:var(--ink-lt);margin-top:1px}
-.mac-r{display:flex;align-items:center;gap:20px}
-.mac-val{font-family:'Outfit',sans-serif;font-size:20px;font-weight:800;color:var(--green)}
-.mac-vallabel{font-size:8.5px;font-weight:700;letter-spacing:1.2px;
-  text-transform:uppercase;color:var(--ink-lt);margin-top:1px}
-.chev{transition:transform .22s;color:var(--ink-lt);font-size:13px}
-.chev.open{transform:rotate(180deg)}
-.mac-body{display:none;background:#FAFCFC;border-top:1px solid #EDF2F7}
-.mac-body.open{display:block}
+/* ── GRADE / MACHINE TAGS ─────────────────────────── */
+.grade {
+  display: inline-block; padding: 2px 7px; border-radius: 4px;
+  font-size: 9px; font-weight: 700; letter-spacing: .8px;
+  background: var(--greenBg); color: var(--green); border: 1px solid var(--greenBd);
+}
+.mach {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 9px; font-weight: 700; letter-spacing: .6px;
+  background: var(--blueBg); color: var(--blue); border: 1px solid var(--blueBd);
+}
 
-/* ── CHARTS ────────────────────────────────────────────────────── */
-.charts-section{padding:16px 20px 4px;border-bottom:1px solid var(--border);background:#FAFBFD}
-.charts-row{display:grid;gap:16px}
-.charts-row.col2{grid-template-columns:1fr 1fr}
-.chart-box{background:var(--white);border:1px solid var(--border);
-  border-radius:var(--r-sm);padding:14px 16px 10px;overflow:hidden}
-.chart-title{font-size:9.5px;font-weight:700;letter-spacing:1.2px;
-  text-transform:uppercase;color:var(--ink-lt);margin-bottom:10px}
-/* chart-canvas-wrap: explicit block with width:100% so canvas always
-   inherits a real pixel width, not 0 from an unrendered flex child   */
-.chart-canvas-wrap{display:block;width:100%;overflow:hidden}
-canvas{display:block;max-width:100%}
+/* ── MACHINE ACCORDION ────────────────────────────── */
+.mac-block { border-bottom: 1px solid var(--border) }
+.mac-block:last-child { border-bottom: none }
+.mac-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 20px; cursor: pointer; transition: background .14s;
+}
+.mac-head:hover { background: var(--slate-lt) }
+.mac-l { display: flex; align-items: center; gap: 12px }
+.mac-ico {
+  width: 34px; height: 34px; border-radius: 8px; flex-shrink: 0;
+  background: var(--slate-lt); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center; font-size: 15px;
+}
+.mac-name {
+  font-family: var(--ff-display); font-size: 12px; font-weight: 800;
+  letter-spacing: .5px; text-transform: uppercase; color: var(--slate);
+}
+.mac-sub { font-size: 11px; color: var(--ink-lt); margin-top: 2px }
+.mac-r { display: flex; align-items: center; gap: 20px }
+.mac-val { font-family: var(--ff-display); font-size: 22px; color: var(--green); text-align: right }
+.mac-vlab { font-size: 8px; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-lt); margin-top: 1px }
+.chev { transition: transform .2s; color: var(--ink-lt); font-size: 12px }
+.chev.open { transform: rotate(180deg) }
+.mac-body { display: none; border-top: 1px solid var(--border) }
+.mac-body.open { display: block }
 
-/* ── EMPTY / LOADING ───────────────────────────────────────────── */
-.empty{text-align:center;padding:52px 20px;color:var(--ink-lt)}
-.empty-ico{font-size:36px;margin-bottom:10px;opacity:.35;display:block}
-/* Not-connected: shown before any Google Sheets link is set up */
-.empty-connect{
-  text-align:center;padding:60px 24px;
-  background:linear-gradient(160deg,var(--slate-lt) 0%,#EBF2FB 100%);
+/* ── CHARTS ───────────────────────────────────────── */
+.charts-section {
+  padding: 14px 18px 6px;
+  border-bottom: 1px solid var(--border);
+  background: #FAFBFD;
 }
-.empty-connect-ico{font-size:48px;margin-bottom:12px;display:block;opacity:.5}
-.empty-connect-title{
-  font-family:'Outfit',sans-serif;font-size:16px;font-weight:800;
-  color:var(--slate);margin-bottom:6px;letter-spacing:.3px;
+.charts-row { display: grid; gap: 14px }
+.charts-row.col2 { grid-template-columns: 1fr 1fr }
+.chart-box {
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 12px 14px 8px; overflow: hidden;
 }
-.empty-connect-body{
-  font-size:12.5px;color:var(--ink-mid);line-height:1.7;
-  max-width:340px;margin:0 auto 18px;
+.chart-title {
+  font-size: 9px; font-weight: 700;
+  letter-spacing: 1.2px; text-transform: uppercase;
+  color: var(--ink-lt); margin-bottom: 10px;
 }
-/* Not-uploaded: data was expected but the sheet has no rows for that date */
-.empty-pending{
-  display:flex;align-items:flex-start;gap:14px;
-  background:var(--gold-lt);border:1px solid var(--gold-mid);
-  border-left:4px solid var(--gold);border-radius:var(--r);
-  padding:18px 20px;margin:16px 20px;
-}
-.empty-pending-ico{font-size:26px;flex-shrink:0;line-height:1}
-.empty-pending-title{
-  font-family:'Outfit',sans-serif;font-size:13px;font-weight:800;
-  color:var(--gold-dk);margin-bottom:4px;
-}
-.empty-pending-body{font-size:12px;color:#7A5A10;line-height:1.65}
-.loading{display:flex;align-items:center;justify-content:center;
-  padding:52px;gap:10px;color:var(--ink-mid);font-size:13px}
-.spin{display:inline-block;animation:spin 1s linear infinite;font-size:18px}
-@keyframes spin{to{transform:rotate(360deg)}}
+.chart-canvas-wrap { display: block; width: 100%; overflow: hidden }
+canvas { display: block; max-width: 100% }
 
-/* ── MODAL ─────────────────────────────────────────────────────── */
-.ov{position:fixed;inset:0;background:rgba(10,18,28,.45);z-index:500;
-  display:flex;align-items:center;justify-content:center;backdrop-filter:blur(5px)}
-.modal{background:var(--white);border:1px solid var(--border);border-radius:16px;
-  padding:26px 28px;width:640px;max-width:95vw;max-height:92vh;overflow-y:auto;
-  box-shadow:0 20px 60px rgba(15,25,35,.18);animation:riseIn .22s ease}
-.modal-title{font-family:'Outfit',sans-serif;font-size:16px;font-weight:800;
-  color:var(--slate);letter-spacing:.5px;text-transform:uppercase}
-.modal-sub{font-size:12.5px;color:var(--ink-mid);line-height:1.65;
-  margin-top:4px;margin-bottom:16px}
-.step-label{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
-  color:var(--ink-lt);margin:14px 0 8px;padding-bottom:5px;
-  border-bottom:1px solid var(--border);display:flex;align-items:center;gap:7px}
-.step-label::before{content:'';width:10px;height:3px;background:var(--step-c,var(--gold));
-  border-radius:2px;flex-shrink:0}
-.fg{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:4px}
-.fg3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-bottom:4px}
-.field{display:flex;flex-direction:column;gap:3px}
-.field label{font-size:9px;font-weight:700;letter-spacing:1px;
-  text-transform:uppercase;color:var(--ink-lt)}
-.field input{background:var(--slate-lt);border:1px solid var(--border);
-  border-radius:var(--r-sm);padding:8px 11px;font-family:inherit;
-  font-size:12.5px;color:var(--ink);outline:none;
-  transition:border-color .17s,box-shadow .17s}
-.field input:focus{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-lt);background:var(--white)}
-.field input::placeholder{color:var(--ink-lt)}
-.code-wrap pre{background:#0F1923;color:#A8C4D4;border-radius:var(--r-sm);
-  padding:12px 14px;font-size:10px;line-height:1.7;overflow-x:auto;
-  white-space:pre;max-height:180px;overflow-y:auto;font-family:monospace;margin:8px 0 4px}
-.modal-foot{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;
-  padding-top:14px;border-top:1px solid var(--border);align-items:center;flex-wrap:wrap}
-.test-res{font-size:12px;font-weight:600;padding:6px 12px;
-  border-radius:var(--r-sm);flex:1;min-width:120px}
-.test-ok{background:var(--green-bg);color:var(--green);border:1px solid var(--green-bd)}
-.test-fail{background:var(--red-bg);color:var(--red);border:1px solid #FCBABA}
-details summary{font-size:11.5px;color:var(--ink-lt);cursor:pointer;
-  user-select:none;margin-top:8px}
-details .inner{font-size:11.5px;color:var(--ink-mid);line-height:1.8;
-  background:var(--slate-lt);border:1px solid var(--border);
-  border-radius:var(--r-sm);padding:10px 12px;margin-top:6px}
+/* ── OVERVIEW TAB ─────────────────────────────────── */
+.ov-date {
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: var(--ink-lt); padding: 10px 20px 6px;
+}
+.ov-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+.ov-panel {
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: var(--r); overflow: hidden;
+  border-left: 3px solid var(--gold);
+  box-shadow: 0 2px 12px rgba(15,25,35,.06);
+  animation: rise .24s ease both;
+}
+.ov-panel.green-l { border-left-color: var(--green) }
+.ov-panel.blue-l  { border-left-color: var(--blue)  }
+.ov-panel.red-l   { border-left-color: var(--red)   }
+.ov-panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; background: #FAFBFD;
+  border-bottom: 1px solid var(--border);
+}
+.ov-panel-title {
+  font-size: 9px; font-weight: 700;
+  letter-spacing: 1.5px; text-transform: uppercase; color: var(--ink-lt);
+}
+.ov-panel-action {
+  font-size: 9px; font-weight: 700;
+  letter-spacing: .5px; text-transform: uppercase;
+  color: var(--gold-dk); cursor: pointer; opacity: .8;
+  transition: opacity .14s;
+}
+.ov-panel-action:hover { opacity: 1 }
+.ov-kpi-row {
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 1px; background: var(--border);
+}
+.ov-kpi {
+  background: var(--white); padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.ov-kpi-label {
+  font-size: 8px; font-weight: 700;
+  letter-spacing: 1.5px; text-transform: uppercase; color: var(--ink-lt);
+}
+.ov-kpi-val {
+  font-family: var(--ff-display); font-size: 22px; font-weight: 800;
+  color: var(--slate); line-height: 1;
+}
+.ov-kpi-val.amber { color: var(--gold-dk) }
+.ov-kpi-val.green { color: var(--green) }
+.ov-kpi-val.blue  { color: var(--blue)  }
+.ov-rows { padding: 8px 0 }
+.ov-row {
+  display: flex; align-items: center;
+  padding: 7px 16px; gap: 10px;
+  border-bottom: 1px solid #F0F4F8;
+  transition: background .1s;
+}
+.ov-row:last-child { border-bottom: none }
+.ov-row:hover { background: #F7FAFD }
+.ov-row-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+}
+.ov-row-label { flex: 1; font-size: 12px; color: var(--ink-mid); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.ov-row-val {
+  font-size: 12px; font-weight: 700;
+  color: var(--slate); flex-shrink: 0;
+}
+.ov-empty {
+  padding: 20px 16px; text-align: center;
+  font-size: 11px; font-weight: 600;
+  letter-spacing: .5px;
+  color: var(--ink-lt);
+}
 
-/* ── AU ENTRY FORM ─────────────────────────────────────────────── */
-.au-wrap{
-  max-width:540px;margin:0 auto;
+/* ── EMPTY & LOADING STATES ───────────────────────── */
+.empty {
+  text-align: center; padding: 52px 20px; color: var(--ink-lt);
 }
-.au-card{
-  background:var(--white);border:1px solid var(--border);
-  border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden;
-  animation:riseIn .28s ease both;
+.empty-ico { font-size: 32px; margin-bottom: 10px; opacity: .35; display: block }
+.empty-title {
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 1px; text-transform: uppercase;
+  color: var(--ink-lt); margin-bottom: 6px;
 }
-.au-head{
-  background:linear-gradient(135deg,var(--slate) 0%,#2C4A65 100%);
-  padding:20px 24px;
+.empty-body { font-size: 12px; color: var(--ink-lt); line-height: 1.6; max-width: 280px; margin: 0 auto }
+.loading {
+  display: flex; align-items: center; justify-content: center;
+  padding: 52px; gap: 10px;
+  font-size: 13px; color: var(--ink-mid);
 }
-.au-head-title{
-  font-family:'Outfit',sans-serif;font-size:15px;font-weight:800;
-  color:var(--white);letter-spacing:.5px;text-transform:uppercase;
+.spin { display: inline-block; animation: spin 1s linear infinite }
+
+/* ── NOT-CONNECTED SCREEN ─────────────────────────── */
+.no-conn {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; padding: 64px 24px; gap: 16px;
+  text-align: center;
 }
-.au-head-sub{
-  font-size:11px;color:rgba(255,255,255,.55);margin-top:3px;
-  letter-spacing:.3px;
+.no-conn-hex { font-size: 52px; opacity: .25; margin-bottom: 4px }
+.no-conn-title {
+  font-family: var(--ff-display); font-size: 22px; font-weight: 800; color: var(--slate);
 }
-.au-body{padding:24px 24px 20px;display:flex;flex-direction:column;gap:18px}
-.au-field{display:flex;flex-direction:column;gap:6px}
-.au-label{
-  font-size:9px;font-weight:700;letter-spacing:1.8px;
-  text-transform:uppercase;color:var(--ink-lt);
+.no-conn-body {
+  font-size: 12.5px; color: var(--text3); max-width: 320px;
+  line-height: 1.7;
 }
-.au-label span{color:var(--red);margin-left:2px}
-.au-input, .au-select, .au-textarea{
-  background:var(--slate-lt);border:1.5px solid var(--border);
-  border-radius:var(--r-sm);padding:11px 14px;
-  font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;
-  color:var(--ink);outline:none;width:100%;
-  transition:border-color .18s,box-shadow .18s,background .18s;
-  appearance:none;-webkit-appearance:none;
+
+/* ── PENDING NOTICE ───────────────────────────────── */
+.pending {
+  display: flex; align-items: flex-start; gap: 12px;
+  background: var(--amberBg); border: 1px solid var(--amberBd);
+  border-left: 3px solid var(--amber); border-radius: var(--r);
+  padding: 14px 16px; margin: 14px 18px;
 }
-.au-input:focus,.au-select:focus,.au-textarea:focus{
-  border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-lt);
-  background:var(--white);
+.pending-ico { font-size: 18px; flex-shrink: 0; margin-top: 1px }
+.pending-title {
+  font-family: var(--ff-mono); font-size: 10px; font-weight: 600;
+  letter-spacing: 1px; text-transform: uppercase;
+  color: var(--amber); margin-bottom: 4px;
 }
-.au-input::placeholder,.au-textarea::placeholder{color:var(--ink-lt)}
-.au-select{
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%237A90A4' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-  background-repeat:no-repeat;background-position:right 12px center;
-  padding-right:36px;cursor:pointer;
+.pending-body { font-size: 12px; color: var(--text2); line-height: 1.6 }
+
+/* ── ERROR BANNER ─────────────────────────────────── */
+.err-banner {
+  display: flex; align-items: flex-start; gap: 10px;
+  background: var(--redBg); border: 1px solid var(--redBd);
+  border-left: 3px solid var(--red); border-radius: var(--r);
+  padding: 12px 16px;
 }
-.au-select option{color:var(--ink)}
-.au-textarea{resize:vertical;min-height:90px;line-height:1.55}
-.au-amount-wrap{position:relative}
-.au-amount-wrap .au-prefix{
-  position:absolute;left:14px;top:50%;transform:translateY(-50%);
-  font-size:14px;font-weight:700;color:var(--ink-mid);
-  pointer-events:none;
+.err-banner-body { flex: 1; font-size: 12px; color: var(--text2); line-height: 1.6 }
+
+/* ── BUTTONS ──────────────────────────────────────── */
+.btn {
+  border: none; border-radius: var(--r-sm); padding: 7px 14px;
+  font-family: var(--ff-mono); font-size: 9.5px; font-weight: 600;
+  letter-spacing: .8px; text-transform: uppercase;
+  cursor: pointer; transition: all .15s;
+  display: inline-flex; align-items: center; gap: 6px;
 }
-.au-amount-wrap .au-input{padding-left:30px}
-.au-footer{
-  padding:16px 24px 20px;border-top:1px solid var(--border);
-  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+.btn-primary {
+  background: var(--slate); color: #fff; font-weight: 700;
 }
-.au-submit{
-  background:var(--slate);color:var(--white);border:none;
-  border-radius:var(--r-sm);padding:13px 28px;
-  font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;
-  font-weight:700;letter-spacing:.5px;text-transform:uppercase;
-  cursor:pointer;transition:all .18s;
-  display:inline-flex;align-items:center;gap:8px;
+.btn-primary:hover { background: var(--gold); color: var(--slate); }
+.btn-ghost {
+  background: transparent; color: var(--ink-mid); border: 1px solid var(--border);
 }
-.au-submit:hover:not(:disabled){background:var(--gold);color:var(--slate)}
-.au-submit:disabled{opacity:.5;cursor:not-allowed}
-.au-submit .spin{font-size:14px}
-/* Result banners */
-.au-result{
-  border-radius:var(--r-sm);padding:10px 14px;
-  font-size:12.5px;font-weight:600;line-height:1.5;flex:1;min-width:0;
+.btn-ghost:hover { border-color: var(--gold); color: var(--ink) }
+
+/* ── MODAL ────────────────────────────────────────── */
+.ov-modal {
+  position: fixed; inset: 0;
+  background: rgba(15,25,35,.45); z-index: 500;
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(5px);
 }
-.au-result.ok{
-  background:var(--green-bg);color:var(--green);
-  border:1px solid var(--green-bd);
+.modal {
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: 24px 26px;
+  width: 640px; max-width: 95vw; max-height: 92vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(15,25,35,.18);
+  animation: rise .2s ease;
 }
-.au-result.err{
-  background:var(--red-bg);color:var(--red);
-  border:1px solid #FCBABA;
+.modal-title {
+  font-family: var(--ff-display); font-size: 16px; font-weight: 800;
+  letter-spacing: .5px; text-transform: uppercase; color: var(--slate);
+  margin-bottom: 4px;
 }
-/* History table below form */
-.au-history{margin-top:16px}
-.au-history-title{
-  font-size:10px;font-weight:700;letter-spacing:1.5px;
-  text-transform:uppercase;color:var(--ink-lt);
-  padding:0 0 8px;
+.modal-sub { font-size: 12.5px; color: var(--ink-mid); line-height: 1.6; margin-bottom: 14px }
+.step-lbl {
+  font-family: var(--ff-mono); font-size: 8.5px; font-weight: 600;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: var(--text3); margin: 14px 0 8px;
+  padding-bottom: 6px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 7px;
 }
-@media(max-width:600px){
-  .au-body{padding:16px 16px 12px;gap:14px}
-  .au-footer{padding:12px 16px 16px}
-  .au-input,.au-select,.au-textarea{font-size:16px} /* prevent iOS zoom */
+.step-lbl::before {
+  content: ''; width: 10px; height: 2px;
+  background: var(--step-c, var(--amber)); border-radius: 2px; flex-shrink: 0;
 }
-@media(max-width:768px){
-  :root{font-size:13px}
-  .hdr{padding:0 12px;height:auto;min-height:50px;flex-wrap:wrap;
-    gap:5px;padding-top:7px;padding-bottom:7px}
-  .hdr-l{flex:1;min-width:0}
-  .hdr-r{gap:5px;flex-wrap:wrap;justify-content:flex-end}
-  .brand{font-size:13px}.brand-sub,.hdr-date{display:none}
-  .logo{width:30px;height:30px}
-  .btn{font-size:10px;padding:5px 9px}
-  .nav{padding:0 8px}
-  .nav-btn{padding:10px 10px 8px;font-size:10px}
-  .page{padding:12px 12px;gap:12px}
-  .kpi-grid{grid-template-columns:repeat(2,1fr);gap:8px}
-  .kpi-card{padding:12px 13px}.kpi-value{font-size:22px}
-  .card-head{padding:10px 13px}
-  .picker-bar{padding:9px 13px;gap:8px}
-  .sbar{padding:8px 13px}.srch{width:100%}
-  .rec-badge{margin-left:0}
-  table{min-width:480px}
-  thead th{padding:7px 9px;font-size:8px}
-  tbody td{padding:7px 9px;font-size:12px}
-  .mac-head{padding:11px 13px}
-  .charts-row.col2{grid-template-columns:1fr}
-  .tw{max-height:340px}
-  .modal{padding:18px 16px;width:96vw}
-  .fg,.fg3{grid-template-columns:1fr}
+.fg { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 4px }
+.fg3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 4px }
+.field { display: flex; flex-direction: column; gap: 4px }
+.field label {
+  font-family: var(--ff-mono); font-size: 8px; font-weight: 600;
+  letter-spacing: 1.2px; text-transform: uppercase; color: var(--text3);
 }
-@media(max-width:420px){
-  .nav-btn{padding:9px 7px 7px;font-size:9px}
-  .kpi-value{font-size:19px}
+.field input {
+  background: var(--slate-lt); border: 1.5px solid var(--border);
+  border-radius: var(--r-sm); padding: 8px 11px;
+  font-family: var(--ff-body); font-size: 13px;
+  color: var(--ink); outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.field input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-lt) }
+.field input::placeholder { color: var(--ink-lt) }
+.code-wrap pre {
+  background: #0F1923; color: #A8C4D4; border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  padding: 12px 14px; font-size: 9.5px; line-height: 1.7; overflow-x: auto;
+  white-space: pre; max-height: 180px; overflow-y: auto;
+  font-family: monospace; margin: 6px 0 4px;
+}
+.modal-foot {
+  display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;
+  padding-top: 14px; border-top: 1px solid var(--border);
+  align-items: center; flex-wrap: wrap;
+}
+.test-res {
+  font-family: var(--ff-mono); font-size: 11px; font-weight: 600;
+  padding: 6px 12px; border-radius: var(--r-sm); flex: 1; min-width: 120px;
+}
+.test-ok  { background: var(--greenBg); color: var(--green); border: 1px solid var(--greenBd) }
+.test-fail{ background: var(--redBg);   color: var(--red);   border: 1px solid var(--redBd)   }
+details summary {
+  font-family: var(--ff-mono); font-size: 10px; font-weight: 600;
+  letter-spacing: .8px; text-transform: uppercase;
+  color: var(--text3); cursor: pointer; user-select: none; margin-top: 8px;
+}
+details .inner {
+  font-size: 11.5px; color: var(--text2); line-height: 1.8;
+  background: var(--ink2); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 10px 12px; margin-top: 6px;
+}
+
+/* ── AU ENTRY FORM ────────────────────────────────── */
+.au-wrap { max-width: 560px; margin: 0 auto }
+.au-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r); overflow: hidden; animation: rise .24s ease;
+}
+.au-head {
+  background: linear-gradient(135deg, var(--ink) 0%, #0A1520 100%);
+  border-bottom: 1px solid var(--border); padding: 18px 22px;
+  position: relative; overflow: hidden;
+}
+.au-head::before {
+  content: '⬡'; position: absolute; right: -10px; top: -16px;
+  font-size: 80px; opacity: .04; line-height: 1;
+}
+.au-head-title {
+  font-family: var(--ff-display); font-size: 18px;
+  color: var(--text); margin-bottom: 2px;
+}
+.au-head-sub { font-family: var(--ff-mono); font-size: 9px; color: var(--text3); letter-spacing: 1px }
+.au-body { padding: 22px 22px 14px; display: flex; flex-direction: column; gap: 16px }
+.au-field { display: flex; flex-direction: column; gap: 5px }
+.au-label {
+  font-size: 9px; font-weight: 700;
+  letter-spacing: 1.5px; text-transform: uppercase; color: var(--ink-lt);
+}
+.au-label span { color: var(--red); margin-left: 2px }
+.au-input, .au-select, .au-textarea {
+  background: var(--slate-lt); border: 1.5px solid var(--border);
+  border-radius: var(--r-sm); padding: 11px 13px;
+  font-family: var(--ff-body); font-size: 14px;
+  color: var(--ink); outline: none; width: 100%;
+  transition: border-color .16s, box-shadow .16s, background .16s;
+  appearance: none; -webkit-appearance: none;
+}
+.au-input:focus, .au-select:focus, .au-textarea:focus {
+  border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-lt);
+  background: var(--white);
+}
+.au-input::placeholder, .au-textarea::placeholder { color: var(--ink-lt) }
+.au-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%237A90A4' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center;
+  padding-right: 34px; cursor: pointer;
+}
+.au-select option { background: #fff; color: var(--ink) }
+.au-textarea { resize: vertical; min-height: 88px; line-height: 1.55 }
+.au-amount-wrap { position: relative }
+.au-prefix {
+  position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+  font-size: 14px; font-weight: 700;
+  color: var(--ink-mid); pointer-events: none;
+}
+.au-amount-wrap .au-input { padding-left: 28px }
+.au-footer {
+  padding: 14px 22px 20px; border-top: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.au-submit {
+  background: var(--amber); color: var(--ink); border: none;
+  border-radius: var(--r-sm); padding: 12px 26px;
+  font-family: var(--ff-mono); font-size: 10px; font-weight: 700;
+  letter-spacing: 1px; text-transform: uppercase;
+  cursor: pointer; transition: all .16s;
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.au-submit:hover:not(:disabled) { background: var(--amber2) }
+.au-submit:disabled { opacity: .45; cursor: not-allowed }
+.au-result {
+  border-radius: var(--r-sm); padding: 9px 13px;
+  font-family: var(--ff-mono); font-size: 11px; font-weight: 600;
+  line-height: 1.5; flex: 1; min-width: 0;
+}
+.au-result.ok  { background: var(--greenBg); color: var(--green); border: 1px solid var(--greenBd) }
+.au-result.err { background: var(--redBg);   color: var(--red);   border: 1px solid var(--redBd)   }
+.au-history { margin-top: 14px }
+.au-history-title {
+  font-family: var(--ff-mono); font-size: 8.5px; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--text3); padding: 0 0 8px;
+}
+
+/* ── RESPONSIVE ───────────────────────────────────── */
+@media (max-width: 768px) {
+  :root { font-size: 13px }
+  .hdr { padding-left: max(14px, calc(env(safe-area-inset-left) + 14px));
+         padding-right: max(14px, calc(env(safe-area-inset-right) + 14px)) }
+  .brand-name { font-size: 15px }
+  .brand-dept { display: none }
+  /* Show bottom nav, hide top nav */
+  .top-nav-wrap { display: none }
+  .bot-nav { display: grid }
+  .page { padding: 12px 14px; gap: 12px }
+  .ov-grid { grid-template-columns: 1fr }
+  .kpi-grid { grid-template-columns: repeat(2,1fr) }
+  .kpi-value { font-size: 22px }
+  .charts-row.col2 { grid-template-columns: 1fr }
+  .tw { max-height: 340px }
+  table { min-width: 440px }
+  thead th { padding: 7px 9px }
+  tbody td { padding: 7px 9px }
+  .modal { padding: 16px; width: 96vw }
+  .fg,.fg3 { grid-template-columns: 1fr }
+  .au-input,.au-select,.au-textarea { font-size: 16px }
+  .au-body { padding: 16px 16px 10px }
+  .au-footer { padding: 12px 16px 16px }
+  .mac-head { padding: 11px 14px }
+}
+@media (max-width: 420px) {
+  .kpi-value { font-size: 20px }
+  .ov-kpi-val { font-size: 19px }
 }
 </style>
 </head>
 <body>
 
-<!-- ═══════ HEADER ════════════════════════════════════════════════ -->
+<!-- ═══ HEADER ══════════════════════════════════════ -->
 <header class="hdr">
   <div class="hdr-l">
-    <div class="logo">
-      <svg viewBox="0 0 24 24" fill="none" stroke="#E8A020" stroke-width="2.2"
-           stroke-linecap="round" stroke-linejoin="round">
-        <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"/>
-        <line x1="12" y1="2" x2="12" y2="22"/>
-        <line x1="2" y1="8.5" x2="22" y2="8.5"/>
+    <div class="logo-mark">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40.72 39.71"
+           width="40" height="39" style="display:block;flex-shrink:0">
+        <polygon fill="#f5b611" points="16.59 24.35 16.59 32.03 0 32.03 0 39.71 24.27 39.71 24.27 32.03 24.27 24.35 16.59 24.35"/>
+        <polygon fill="#2c3b48" points="0 0 0 30.39 7.68 30.39 7.68 7.68 14.61 7.68 14.61 0 0 0"/>
+        <polygon fill="#2c3b48" points="33.04 9.63 33.04 32.03 26.24 32.03 26.24 39.71 40.72 39.71 40.72 9.63 33.04 9.63"/>
+        <polygon fill="#f5b611" points="16.59 0 16.59 15.36 24.27 15.36 24.27 7.68 40.72 7.68 40.72 0 16.59 0"/>
       </svg>
-    </div>
-    <div>
-      <div class="brand">HELIX <span>INDUSTRIES</span></div>
-      <div class="brand-sub">Operations Dashboard</div>
+      <div>
+        <div class="brand-name">Helix Industries</div>
+        <div class="brand-dept">Operations Dashboard</div>
+      </div>
     </div>
   </div>
   <div class="hdr-r">
-    <div class="hdr-date" id="hdr-date"></div>
-    <div id="hdr-badge" class="badge badge-demo">
-      <span class="pulse pulse-amber"></span>Demo Data
+    <div id="hdr-badge" class="demo-badge">
+      <span class="pulse pulse-a"></span>
+      <span id="badge-text">Not Connected</span>
     </div>
-    <button id="btn-refresh" class="btn btn-ghost" style="display:none" onclick="loadData()">
-      <span id="ri">↻</span> Refresh
+    <button class="icon-btn" id="btn-refresh" style="display:none" onclick="loadData()" title="Refresh data">
+      <span class="spin-ico" id="ri">↻</span>
     </button>
-    <button class="btn btn-primary" onclick="openModal()">⚡ Connect Sheets</button>
+    <button class="btn btn-primary" onclick="openModal()">⚡ Connect</button>
   </div>
 </header>
 
-<!-- ═══════ NAV TABS ══════════════════════════════════════════════ -->
-<div class="nav-wrap">
-  <nav class="nav">
-    <button class="nav-btn active" data-tab="di" onclick="switchTab(this)">Daily Inward</button>
-    <button class="nav-btn" data-tab="mi" onclick="switchTab(this)">Monthly Inward</button>
-    <button class="nav-btn" data-tab="dd" onclick="switchTab(this)">Daily Dispatch</button>
-    <button class="nav-btn" data-tab="md" onclick="switchTab(this)">Monthly Dispatch</button>
-    <button class="nav-btn" data-tab="pr" onclick="switchTab(this)">Production</button>
-    <button class="nav-btn" data-tab="st" onclick="switchTab(this)">Stock</button>
-    <button class="nav-btn" data-tab="au" onclick="switchTab(this)">AU Entry</button>
+<!-- ═══ DESKTOP TOP NAV ══════════════════════════════ -->
+<div class="top-nav-wrap" id="top-nav-wrap">
+  <nav class="top-nav">
+    <button class="top-nav-btn active" data-tab="ov" onclick="switchTab(this)"><span class="nb-icon">◈</span>Overview</button>
+    <button class="top-nav-btn" data-tab="di" onclick="switchTab(this)"><span class="nb-icon">↓</span>Daily Inward</button>
+    <button class="top-nav-btn" data-tab="mi" onclick="switchTab(this)"><span class="nb-icon">↓↓</span>Monthly Inward</button>
+    <button class="top-nav-btn" data-tab="dd" onclick="switchTab(this)"><span class="nb-icon">↑</span>Daily Dispatch</button>
+    <button class="top-nav-btn" data-tab="md" onclick="switchTab(this)"><span class="nb-icon">↑↑</span>Monthly Dispatch</button>
+    <button class="top-nav-btn" data-tab="pr" onclick="switchTab(this)"><span class="nb-icon">⚙</span>Production</button>
+    <button class="top-nav-btn" data-tab="st" onclick="switchTab(this)"><span class="nb-icon">▦</span>Stock</button>
+    <button class="top-nav-btn" data-tab="au" onclick="switchTab(this)"><span class="nb-icon">✎</span>AU Entry</button>
   </nav>
 </div>
 
-<!-- ═══════ PAGE CONTENT (rendered by JS) ════════════════════════ -->
+<!-- ═══ PAGE CONTENT ═════════════════════════════════ -->
 <div class="page" id="page"></div>
 
-<!-- ═══════ CONNECT MODAL ════════════════════════════════════════ -->
-<div class="ov" id="modal" style="display:none" onclick="closeModalBg(event)">
+<!-- ═══ MOBILE BOTTOM NAV ════════════════════════════ -->
+<nav class="bot-nav" id="bot-nav">
+  <button class="bot-btn active" data-tab="ov" onclick="switchTab(this)"><span class="bi">◈</span>Overview</button>
+  <button class="bot-btn" data-tab="di" onclick="switchTab(this)"><span class="bi">↓</span>Inward</button>
+  <button class="bot-btn" data-tab="mi" onclick="switchTab(this)"><span class="bi">↓↓</span>Mo.In</button>
+  <button class="bot-btn" data-tab="dd" onclick="switchTab(this)"><span class="bi">↑</span>Dispatch</button>
+  <button class="bot-btn" data-tab="md" onclick="switchTab(this)"><span class="bi">↑↑</span>Mo.Dis</button>
+  <button class="bot-btn" data-tab="pr" onclick="switchTab(this)"><span class="bi">⚙</span>Prod</button>
+  <button class="bot-btn" data-tab="st" onclick="switchTab(this)"><span class="bi">▦</span>Stock</button>
+  <button class="bot-btn" data-tab="au" onclick="switchTab(this)"><span class="bi">✎</span>AU</button>
+</nav>
+
+<!-- ═══ CONNECT MODAL ════════════════════════════════ -->
+<div class="ov-modal" id="modal" style="display:none" onclick="closeModalBg(event)">
   <div class="modal">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px">
       <div>
         <div class="modal-title">Connect Google Sheets</div>
-        <div class="modal-sub">Bridged via Google Apps Script — runs on Google's servers, no CORS issues. ~3 min setup.</div>
+        <div class="modal-sub">Bridge via Apps Script — no CORS, runs on Google's servers. ~3 min setup.</div>
       </div>
-      <button onclick="closeModal()" style="background:none;border:none;font-size:22px;
-        cursor:pointer;color:var(--ink-lt);line-height:1;margin-left:12px">×</button>
+      <button onclick="closeModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3);line-height:1;margin-left:12px">×</button>
     </div>
 
-    <div class="step-label" style="--step-c:var(--gold)">Step 1 — Deploy the Apps Script</div>
-    <div style="font-size:12px;color:var(--ink-mid);line-height:1.85;margin-bottom:8px">
-      <b>a.</b> Go to <a href="https://script.google.com" target="_blank">script.google.com</a> → <b>New project</b><br>
-      <b>b.</b> Select all → delete → paste the script below, fill in your 3 Sheet IDs<br>
+    <div class="step-lbl" style="--step-c:var(--amber)">Step 1 — Deploy Apps Script</div>
+    <div style="font-size:12px;color:var(--text2);line-height:1.85;margin-bottom:8px">
+      <b>a.</b> Go to <a href="https://script.google.com" target="_blank" style="color:var(--amber)">script.google.com</a> → <b>New project</b><br>
+      <b>b.</b> Select all → delete → paste script below (fill in your Sheet IDs)<br>
       <b>c.</b> Save → <b>Deploy → New deployment → Web app</b><br>
       <b>d.</b> Execute as: <b>Me</b> · Access: <b>Anyone</b> → Deploy → Authorise<br>
-      <b>e.</b> Copy the <code style="background:var(--slate-lt);padding:1px 5px;border-radius:3px">/exec</code> URL
+      <b>e.</b> Copy the <code style="background:var(--ink2);padding:1px 5px;border-radius:3px;font-family:var(--ff-mono)">/exec</code> URL
     </div>
     <div class="code-wrap"><pre id="gas-code-pre"></pre></div>
     <div style="display:flex;gap:7px;margin-top:7px;flex-wrap:wrap;margin-bottom:4px">
       <button class="btn btn-primary" onclick="copyCode()" id="copy-btn">📋 Copy Script</button>
       <button class="btn btn-ghost" onclick="downloadCode()">⬇ Download .gs</button>
-      <span style="margin-left:auto;font-size:10px;color:var(--ink-lt);align-self:center">Fill Sheet IDs before deploying</span>
-    </div>
-    <div style="font-size:11px;color:var(--ink-lt);line-height:1.6;margin-bottom:2px">
-      💡 Sheet ID = bold part of your URL:
-      <code style="background:var(--slate-lt);padding:1px 5px;border-radius:3px;font-size:10px">
-        …/d/<b style="color:var(--slate)">YOUR_ID_HERE</b>/edit
-      </code>
     </div>
 
-    <div class="step-label" style="--step-c:var(--blue);margin-top:14px">Step 2 — Tab Names</div>
-    <div style="font-size:12px;color:var(--ink-mid);margin-bottom:8px">
-      Exact tab names as shown at the bottom of your sheet (case-sensitive).
+    <div class="step-lbl" style="--step-c:var(--blue);margin-top:14px">Step 2 — Tab Names</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Exact tab names in your sheets (case-sensitive).</div>
+    <div class="fg">
+      <div class="field"><label>Inward Tab</label><input id="cfg-it" value="Inward"/></div>
+      <div class="field"><label>Dispatch Tab</label><input id="cfg-dt" value="Dispatch"/></div>
     </div>
-    <div class="fg3">
-      <div class="field"><label>Inward Tab</label>
-        <input id="cfg-it" value="Inward"/></div>
-      <div class="field"><label>Dispatch Tab</label>
-        <input id="cfg-dt" value="Dispatch" placeholder="e.g. Combined"/></div>
-      <div class="field"><label>Production Tab</label>
-        <input id="cfg-pt" placeholder="e.g. Mar-26"
-          style="background:var(--green-bg);border-color:var(--green-bd)"/></div>
+    <div style="font-size:11px;color:var(--green);margin-bottom:8px;padding:6px 10px;background:var(--greenBg);border-radius:var(--r-sm);border:1px solid var(--greenBd)">
+      ✓ <strong>Production tab is automatic</strong> — always uses the current month (e.g. <strong id="auto-prod-hint"></strong>). No configuration needed, rolls over on its own every month.
     </div>
-    <div id="pt-hint" style="font-size:10.5px;color:var(--green);margin-bottom:2px"></div>
 
-    <div class="step-label" style="--step-c:var(--green);margin-top:14px">Step 3 — Paste URL &amp; Test</div>
+    <div class="step-lbl" style="--step-c:var(--green);margin-top:14px">Step 3 — Paste URL &amp; Test</div>
     <div class="field" style="margin-bottom:9px">
       <label>Apps Script Web App URL</label>
-      <input id="cfg-url" placeholder="https://script.google.com/macros/s/…/exec"
-        style="font-family:monospace;font-size:11px" oninput="clearTestRes()"/>
+      <input id="cfg-url" placeholder="https://script.google.com/macros/s/…/exec" style="font-family:var(--ff-mono);font-size:11px" oninput="clearTestRes()"/>
     </div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
       <button class="btn btn-ghost" onclick="testConn()" id="test-btn">🔌 Test Connection</button>
@@ -610,29 +1000,20 @@ details .inner{font-size:11.5px;color:var(--ink-mid);line-height:1.8;
         <b>❶ "Failed to fetch"</b> — URL must end in <code>/exec</code> not <code>/dev</code><br>
         <b>❷ "Script requires auth"</b> — Redeploy: <em>Who has access → Anyone</em><br>
         <b>❸ Tab not found</b> — Tab name must match exactly (capitalisation &amp; spaces)<br>
-        <b>❹ Time shows as date</b> — You are running an old version of the script.
-          Go to script.google.com → <strong>Deploy → New deployment</strong> (not "Manage deployments").
-          Editing an existing deployment does NOT update the running code.<br>
-        <b>❺ After any script edit</b> — Always <em>New deployment</em> to get a fresh /exec URL
+        <b>❹ Time shows as date</b> — Old script version — create a New deployment<br>
+        <b>❺ After any edit</b> — Always <em>New deployment</em> to get a fresh /exec URL
       </div>
     </details>
 
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-ghost" id="copy-link-btn" onclick="copyShareLink()" title="Copy URL with settings embedded — paste this as your bookmark/home screen link">
-        🔗 Copy Saved Link
-      </button>
-      <button class="btn btn-primary" onclick="saveAndConnect()">Connect &amp; Load Data</button>
+      <button class="btn btn-ghost" id="copy-link-btn" onclick="copyShareLink()">🔗 Copy Saved Link</button>
+      <button class="btn btn-primary" onclick="saveAndConnect()">Connect &amp; Load</button>
     </div>
   </div>
 </div>
 
 <script>
-// ╔═══════════════════════════════════════════════════════════════════╗
-// ║  HELIX INDUSTRIES — OPERATIONS DASHBOARD                         ║
-// ║  Vanilla JS, no dependencies, pure-canvas charts                  ║
-// ╚═══════════════════════════════════════════════════════════════════╝
-
 // ── CONSTANTS (declared first — everything else depends on these) ────
 var today     = new Date();
 var yesterday = new Date(today); yesterday.setDate(today.getDate()-1);
@@ -648,6 +1029,7 @@ var COLORS = {
 
 var PALETTE = ['#E8A020','#1A6FC4','#0F9E6E','#D63030','#7C3E0A',
                '#6B7280','#3B82F6','#10B981','#F59E0B','#6366F1'];
+
 
 // ── DATE / TIME UTILITIES ────────────────────────────────────────────
 
@@ -771,146 +1153,167 @@ function dateInMonth(dateStr, year, month) {
   return m === month && y === year;
 }
 
-// ── CONFIG PERSISTENCE — 3-LAYER SYSTEM ─────────────────────────────
+
+// ── CONFIG — GITHUB config.json SYSTEM ──────────────────────────────
+//
+// HOW IT WORKS:
+//   config.json lives in your GitHub Pages repo alongside index.html.
+//   The dashboard fetches it on every startup. When you redeploy Apps
+//   Script and get a new /exec URL, you update config.json — every user
+//   picks it up automatically on next open. No reinstall, no sharing.
+//
+// PRIORITY ORDER (highest to lowest):
+//   1. config.json  — fetched from GitHub on every load (admin-controlled)
+//   2. localStorage — user's manual override via Connect Sheets modal
+//   3. sessionStorage — in-session cache
+//   4. Defaults — empty config (shows connect prompt)
+//
+// config.json format:
+//   {
+//     "scriptUrl":     "https://script.google.com/macros/s/.../exec",
+//     "inwardTab":     "Inward",
+//     "dispatchTab":   "Dispatch",
+//     "productionTab": "Apr-26"
+//   }
+//
+// To update all users after a new GAS deployment:
+//   1. Get new /exec URL from Apps Script
+//   2. Edit config.json in your GitHub repo — paste new URL
+//   3. Commit and push
+//   Done — all users get it on next open (no action needed from them)
+//
+// productionTab is NOT in config.json — it is always computed automatically
+// from today's date (e.g. today = 19 Apr 2026 → tab = "Apr-26").
+// The sheet tab must follow the naming convention: "Mon-YY" (e.g. "Apr-26").
 
 /**
- * Encode a config object into a URL-safe base64 string for the hash.
- * Uses btoa() which is available in all modern browsers.
+ * Load config from localStorage / sessionStorage (user's manual overrides).
+ * Returns null if nothing is stored.
  */
-function encodeConfig(cfg) {
+function loadLocalConfig() {
   try {
-    return btoa(unescape(encodeURIComponent(JSON.stringify(cfg))));
-  } catch(e) { return ''; }
-}
-
-/**
- * Decode a base64 config string back to an object.
- * Returns null on any error.
- */
-function decodeConfig(str) {
-  try {
-    return JSON.parse(decodeURIComponent(escape(atob(str))));
-  } catch(e) { return null; }
-}
-
-/**
- * Parse a production tab name like "Mar-26" and return a Date set to
- * the 1st of that month, or null if the format isn't recognised.
- */
-function prodTabToDate(tabName) {
-  if (!tabName) return null;
-  // Matches "Mar-26", "Apr-26", "Jan-25" etc.
-  var m = tabName.match(/^([A-Za-z]{3})-(\d{2})$/);
-  if (!m) return null;
-  var months = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
-  var mo = months[m[1]]; if (mo === undefined) return null;
-  return new Date(2000 + parseInt(m[2], 10), mo, 1);
-}
-
-/**
- * Check if a production tab name matches the current month.
- * If it's from a past month, return the current month's tab name instead.
- * If it matches or we can't parse it, return it unchanged.
- */
-function autoUpdateProdTab(tabName) {
-  var d = prodTabToDate(tabName);
-  if (!d) return tabName; // Unrecognised format — leave alone
-  var currD = prodTabToDate(AUTO_PROD_TAB);
-  if (!currD) return tabName;
-  // Tab is from a past month — silently update to current month
-  if (d.getFullYear() < currD.getFullYear() ||
-      (d.getFullYear() === currD.getFullYear() && d.getMonth() < currD.getMonth())) {
-    console.info('[Helix] Production tab auto-updated from', tabName, '→', AUTO_PROD_TAB);
-    return AUTO_PROD_TAB;
-  }
-  return tabName;
-}
-
-/**
- * Load config from storage, reading all three layers in priority order.
- * URL hash wins over localStorage wins over sessionStorage.
- */
-function loadConfig() {
-  var cfg = null;
-
-  // ── Layer 3: URL hash (highest priority — survives all purges) ──
-  var hash = window.location.hash;
-  if (hash && hash.indexOf('#cfg=') === 0) {
-    cfg = decodeConfig(hash.slice(5));
-    if (cfg) console.info('[Helix] Config loaded from URL hash');
-  }
-
-  // ── Layer 1: localStorage ──
-  if (!cfg || !cfg.scriptUrl) {
-    var lsUrl = '';
-    try { lsUrl = localStorage.getItem('hi_url') || ''; } catch(e){}
+    var lsUrl = localStorage.getItem('hi_url') || '';
     if (lsUrl) {
-      cfg = {
-        scriptUrl:     lsUrl,
-        inwardTab:     (function(){try{return localStorage.getItem('hi_in')||'Inward';}catch(e){return'Inward';}}()),
-        dispatchTab:   (function(){try{return localStorage.getItem('hi_dis')||'Dispatch';}catch(e){return'Dispatch';}}()),
-        productionTab: (function(){try{return localStorage.getItem('hi_prod')||AUTO_PROD_TAB;}catch(e){return AUTO_PROD_TAB;}}()),
+      return {
+        scriptUrl:        lsUrl,
+        inwardTab:        localStorage.getItem('hi_in')   || 'Inward',
+        dispatchTab:      localStorage.getItem('hi_dis')  || 'Dispatch',
+        inwardSheetId:    localStorage.getItem('hi_sid_in')  || '',
+        dispatchSheetId:  localStorage.getItem('hi_sid_dis') || '',
+        productionSheetId:localStorage.getItem('hi_sid_pr')  || '',
       };
-      console.info('[Helix] Config loaded from localStorage');
     }
-  }
-
-  // ── Layer 2: sessionStorage ──
-  if (!cfg || !cfg.scriptUrl) {
-    try {
-      var ss = sessionStorage.getItem('hi_cfg');
-      if (ss) { cfg = JSON.parse(ss); console.info('[Helix] Config loaded from sessionStorage'); }
-    } catch(e){}
-  }
-
-  // ── Defaults if nothing found ──
-  if (!cfg) {
-    cfg = { scriptUrl:'', inwardTab:'Inward', dispatchTab:'Dispatch', productionTab:AUTO_PROD_TAB };
-  }
-
-  // ── Auto-update production tab if month has rolled over ──
-  var updatedProd = autoUpdateProdTab(cfg.productionTab || AUTO_PROD_TAB);
-  if (updatedProd !== cfg.productionTab) {
-    cfg.productionTab = updatedProd;
-    // Persist the updated value immediately
-    if (cfg.scriptUrl) saveConfig(cfg, false); // false = don't trigger loadData
-  }
-
-  return cfg;
+  } catch(e){}
+  try {
+    var ss = sessionStorage.getItem('hi_cfg');
+    if (ss) return JSON.parse(ss);
+  } catch(e){}
+  return null;
 }
 
-/**
- * Persist config to all three storage layers simultaneously.
- * @param {Object}  cfg         Config object to save
- * @param {boolean} triggerLoad Whether to call loadData() after saving
- */
-function saveConfig(cfg, triggerLoad) {
-  // Layer 1: localStorage
+function saveLocalConfig(cfg) {
   try {
-    localStorage.setItem('hi_url',  cfg.scriptUrl);
-    localStorage.setItem('hi_in',   cfg.inwardTab);
-    localStorage.setItem('hi_dis',  cfg.dispatchTab);
-    localStorage.setItem('hi_prod', cfg.productionTab);
+    localStorage.setItem('hi_url',     cfg.scriptUrl);
+    localStorage.setItem('hi_in',      cfg.inwardTab);
+    localStorage.setItem('hi_dis',     cfg.dispatchTab);
+    localStorage.setItem('hi_sid_in',  cfg.inwardSheetId    || '');
+    localStorage.setItem('hi_sid_dis', cfg.dispatchSheetId  || '');
+    localStorage.setItem('hi_sid_pr',  cfg.productionSheetId|| '');
   } catch(e) { console.warn('[Helix] localStorage write failed:', e.message); }
-
-  // Layer 2: sessionStorage
   try {
     sessionStorage.setItem('hi_cfg', JSON.stringify(cfg));
-  } catch(e) { console.warn('[Helix] sessionStorage write failed:', e.message); }
+  } catch(e) {}
+}
 
-  // Layer 3: URL hash — update without triggering a page navigation
-  try {
-    var encoded = encodeConfig(cfg);
-    if (encoded) {
-      var newUrl = window.location.pathname + window.location.search + '#cfg=' + encoded;
-      // replaceState updates the URL silently — no history entry, no page reload
-      window.history.replaceState(null, '', newUrl);
-    }
-  } catch(e) { console.warn('[Helix] URL hash write failed:', e.message); }
+/**
+ * Fetch config.json from the same origin as the page.
+ * Returns a promise that resolves to the config object, or null on failure.
+ * Uses a cache-busting timestamp so GitHub Pages CDN always serves fresh.
+ */
+function fetchRemoteConfig() {
+  return fetch('./config.json?t=' + Date.now())
+    .then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function(data) {
+      // Validate it has at least a scriptUrl
+      if (!data || typeof data.scriptUrl !== 'string') return null;
+      console.info('[Helix] Config loaded from config.json');
+      return data;
+    })
+    .catch(function(e) {
+      console.warn('[Helix] Could not fetch config.json:', e.message,
+        '— falling back to local storage');
+      return null;
+    });
+}
 
-  console.info('[Helix] Config saved to all storage layers');
+/**
+ * Bootstrap: fetch config.json, merge with any local overrides, then start.
+ *
+ * config.json is the source of truth for the GAS URL (admin-controlled).
+ * Local overrides (set via Connect Sheets modal) take precedence only for
+ * keys that are explicitly set — this lets admins push a new URL while
+ * still allowing individual users to point to a different sheet if needed.
+ *
+ * Called once at startup, before render().
+ */
+async function bootstrapConfig() {
+  var remote = await fetchRemoteConfig();
+  var local  = loadLocalConfig();
+
+  var cfg;
+  if (remote) {
+    cfg = {
+      scriptUrl:         remote.scriptUrl         || (local && local.scriptUrl)         || '',
+      inwardTab:         remote.inwardTab         || (local && local.inwardTab)         || 'Inward',
+      dispatchTab:       remote.dispatchTab       || (local && local.dispatchTab)       || 'Dispatch',
+      inwardSheetId:     remote.inwardSheetId     || (local && local.inwardSheetId)     || '',
+      dispatchSheetId:   remote.dispatchSheetId   || (local && local.dispatchSheetId)   || '',
+      productionSheetId: remote.productionSheetId || (local && local.productionSheetId) || '',
+    };
+  } else if (local) {
+    cfg = local;
+  } else {
+    cfg = { scriptUrl:'', inwardTab:'Inward', dispatchTab:'Dispatch',
+            inwardSheetId:'', dispatchSheetId:'', productionSheetId:'' };
+  }
+
+  // productionTab is always AUTO_PROD_TAB — computed from today's date.
+  // Never stored, never configured — rolls over automatically each month.
+  cfg.productionTab = AUTO_PROD_TAB;
+
+  S.cfg = cfg;
+  updateHeader();
+  render();
+  if (cfg.scriptUrl) loadData();
+}
+
+// saveConfig is now just saveLocalConfig — keeps the old call sites working
+function saveConfig(cfg, triggerLoad) {
+  saveLocalConfig(cfg);
   if (triggerLoad && cfg.scriptUrl) loadData();
 }
+
+// Keep encodeConfig / decodeConfig for the Copy Saved Link feature
+function encodeConfig(cfg) {
+  try { return btoa(unescape(encodeURIComponent(JSON.stringify(cfg)))); }
+  catch(e) { return ''; }
+}
+function decodeConfig(str) {
+  try { return JSON.parse(decodeURIComponent(escape(atob(str)))); }
+  catch(e) { return null; }
+}
+
+// loadConfig() kept as a synchronous no-op stub so existing call sites
+// don't throw — bootstrapConfig() replaces its role asynchronously.
+function loadConfig() {
+  return { scriptUrl:'', inwardTab:'Inward', dispatchTab:'Dispatch',
+           productionTab: AUTO_PROD_TAB,
+           inwardSheetId:'', dispatchSheetId:'', productionSheetId:'' };
+}
+
 
 // ── APPLICATION STATE ────────────────────────────────────────────────
 var S = {
@@ -971,21 +1374,7 @@ var S = {
   auHistory: [],            // Last few submitted entries shown below form
 };
 
-// ── APPS SCRIPT CODE (embedded for copy/download) ───────────────────
-/**
- * ROOT CAUSE OF TIME BUG — EXPLAINED:
- * In Google Apps Script, time-only cells in a spreadsheet are stored
- * internally as Date objects whose date part is the spreadsheet epoch
- * (30 December 1899). When you call Utilities.formatDate() on them,
- * you must use "HH:mm" to get the time. But date cells should use
- * "dd MMM yyyy". The previous version used "HH:mm" for EVERYTHING,
- * so date cells became "00:00" and broke all date-based filtering.
- *
- * THE FIX: Check the column header name. If it is "Time", format as
- * "HH:mm". All other Date objects are formatted as "dd MMM yyyy".
- * This is done in the GAS script, not in the browser JS, so the
- * correct string arrives in the JSON payload from the start.
- */
+
 var GAS_CODE = [
 '// ================================================================',
 '// HELIX INDUSTRIES — Google Apps Script Bridge v6',
@@ -1013,14 +1402,12 @@ var GAS_CODE = [
 '//   Copy the /exec URL → paste in dashboard Connect dialog',
 '// ================================================================',
 '',
-'// STEP A: PASTE YOUR SPREADSHEET IDs HERE',
-'var INWARD_SHEET_ID     = "PASTE_INWARD_SPREADSHEET_ID_HERE";',
-'var DISPATCH_SHEET_ID   = "PASTE_DISPATCH_SPREADSHEET_ID_HERE";',
-'var PRODUCTION_SHEET_ID = "PASTE_PRODUCTION_SPREADSHEET_ID_HERE";',
-'// Stock sheet ID is hardcoded — it never changes',
-'var STOCK_SHEET_ID      = "1KXkWqKee_4TW0NR7MOSkncRO5xjz_NksD6d48tx9ZB4";',
-'// AU Entry sheet ID is hardcoded — it never changes',
-'var AU_SHEET_ID         = "1AspDx-HFNHw02Zac_a8dGvoO8xGCao4Kb-3rEgeoxYU";',
+'// ── SHEET IDs ──────────────────────────────────────────────────────',
+'// Inward, Dispatch and Production Sheet IDs are NOT hardcoded here.',
+'// They are sent by the dashboard from config.json as param.sheetId.',
+'// Only Stock and AU Entry are hardcoded because they never change.',
+'var STOCK_SHEET_ID = "1KXkWqKee_4TW0NR7MOSkncRO5xjz_NksD6d48tx9ZB4";',
+'var AU_SHEET_ID    = "1AspDx-HFNHw02Zac_a8dGvoO8xGCao4Kb-3rEgeoxYU";',
 '',
 '/**',
 ' * Entry point — called by Google when the /exec URL is fetched.',
@@ -1048,27 +1435,31 @@ var GAS_CODE = [
 ' * Main dispatcher — routes to the correct sheet reader.',
 ' * @param {string} register  "inward" | "dispatch" | "production" | "stock" | "au_entry" | "__ping__"',
 ' * @param {string} tabName   Exact sheet tab name e.g. "Inward", "Mar-26"',
-' * @param {Object} param     Full URL parameter object from doGet — needed for au_entry writes',
+' * @param {Object} param     Full URL parameter object from doGet',
+' *',
+' * Sheet IDs come from param.sheetId (sent by the dashboard from config.json).',
+' * Stock and AU Entry IDs are hardcoded as they never change.',
 ' */',
 'function run(register, tabName, param) {',
-'  // param defaults to empty object if not passed (defensive)',
 '  param = param || {};',
-'  // Ping — used by the dashboard to test the connection',
 '  if (register === "__ping__") return { ok: true, msg: "Connected!" };',
 '',
 '  try {',
-'    var sheetId =',
-'      register === "inward"     ? INWARD_SHEET_ID :',
-'      register === "dispatch"   ? DISPATCH_SHEET_ID :',
-'      register === "production" ? PRODUCTION_SHEET_ID :',
-'      register === "stock"      ? STOCK_SHEET_ID :',
-'      register === "au_entry"   ? AU_SHEET_ID : null;',
+'    // Sheet IDs: prefer param.sheetId (from dashboard config.json),',
+'    // fall back to hardcoded constants for stock/au which never change.',
+'    var sheetId;',
+'    if (register === "stock") {',
+'      sheetId = STOCK_SHEET_ID;',
+'    } else if (register === "au_entry") {',
+'      sheetId = AU_SHEET_ID;',
+'    } else {',
+'      // Inward, Dispatch, Production — ID comes from config.json via param',
+'      sheetId = String(param.sheetId || "").trim();',
+'      if (!sheetId) return { error: "No sheetId provided for register: " + register + ". Check your config.json has inwardSheetId / dispatchSheetId / productionSheetId." };',
+'    }',
 '',
-'    if (!sheetId) return { error: "Unknown register: " + register };',
+'    var ss = SpreadsheetApp.openById(sheetId);',
 '',
-'    var ss    = SpreadsheetApp.openById(sheetId);',
-'',
-'    // AU Entry — write a new row, no tab name needed',
 '    if (register === "au_entry") return writeAuEntry(ss, param);',
 '',
 '    var sheet = ss.getSheetByName(tabName);',
@@ -1415,7 +1806,6 @@ var GAS_CODE = [
 '  }',
 '}',
 ].join('\n');
-
 // ── DATA NORMALISATION ───────────────────────────────────────────────
 // These functions convert raw rows from GAS (or demo data) into a
 // consistent internal format. cleanTime() is applied to all time fields
@@ -1480,6 +1870,7 @@ function normalStock(r) {
   };
 }
 
+
 // ── JSONP FETCH ──────────────────────────────────────────────────────
 /**
  * Fetch data from the Apps Script bridge using JSONP (script tag injection).
@@ -1490,10 +1881,9 @@ function normalStock(r) {
  * @param {string} tab       Exact sheet tab name
  * @returns {Promise<Array>} Resolves with an array of row objects
  */
-function fetchTab(url, register, tab) {
+function fetchTab(url, register, tab, sheetId) {
   var base = url.trim().replace(/[?&].*$/, '');
   return new Promise(function(resolve, reject) {
-    // Unique global callback name so parallel calls don't collide
     var cb = '_cb_' + register.replace(/\W/g, '') + '_' + Date.now();
     var script;
 
@@ -1507,8 +1897,8 @@ function fetchTab(url, register, tab) {
       clearTimeout(timer);
       delete window[cb];
       if (script && script.parentNode) script.parentNode.removeChild(script);
-      if (data.error)           { reject(new Error(data.error));              return; }
-      if (!Array.isArray(data.data)) { reject(new Error('Unexpected response format')); return; }
+      if (data.error)                  { reject(new Error(data.error));                    return; }
+      if (!Array.isArray(data.data))   { reject(new Error('Unexpected response format'));  return; }
       resolve(data.data);
     };
 
@@ -1516,8 +1906,9 @@ function fetchTab(url, register, tab) {
     script.src = base
       + '?register=' + encodeURIComponent(register)
       + '&tab='      + encodeURIComponent(tab)
+      + (sheetId ? '&sheetId=' + encodeURIComponent(sheetId) : '')
       + '&callback=' + cb
-      + '&t='        + Date.now(); // Cache-bust
+      + '&t='        + Date.now();
     script.onerror = function() {
       clearTimeout(timer);
       delete window[cb];
@@ -1527,7 +1918,8 @@ function fetchTab(url, register, tab) {
   });
 }
 
-/** Load all three data sources from Apps Script and refresh the view */
+
+/** Load all data sources from Apps Script and refresh the view */
 async function loadData() {
   var url = S.cfg.scriptUrl;
   if (!url) return;
@@ -1538,12 +1930,11 @@ async function loadData() {
 
   var errs = {};
   var res  = await Promise.allSettled([
-    fetchTab(url, 'inward',     S.cfg.inwardTab),
-    fetchTab(url, 'dispatch',   S.cfg.dispatchTab),
-    fetchTab(url, 'production', S.cfg.productionTab),
-    // Stock always uses the current-month tab (e.g. "Mar-26").
-    // AUTO_PROD_TAB is computed at page load and auto-updates each month.
-    fetchTab(url, 'stock',      AUTO_PROD_TAB),
+    fetchTab(url, 'inward',     S.cfg.inwardTab,     S.cfg.inwardSheetId),
+    fetchTab(url, 'dispatch',   S.cfg.dispatchTab,   S.cfg.dispatchSheetId),
+    fetchTab(url, 'production', S.cfg.productionTab, S.cfg.productionSheetId),
+    // Stock sheet ID is hardcoded in GAS — always the same sheet
+    fetchTab(url, 'stock',      AUTO_PROD_TAB,       ''),
   ]);
 
   if (res[0].status === 'fulfilled') {
@@ -1591,219 +1982,296 @@ async function loadData() {
   render();
 }
 
-// ── HTML / RENDER HELPERS ────────────────────────────────────────────
 
-/** Escape special HTML characters to prevent XSS */
+// ── RENDER HELPERS ───────────────────────────────────────────────────
+
 function esc(s) {
-  return String(s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-
-/** Colour dot + label pill for paint colours */
 function cpill(color) {
-  var c = COLORS[color] || '#9CA3AF';
-  return '<span class="cpill">'
-    + '<span class="cdot" style="background:' + c + '"></span>'
-    + esc(color) + '</span>';
+  var c = COLORS[color] || '#5E7D94';
+  return '<span class="cpill"><span class="cdot" style="background:'+c+'"></span>'+esc(color)+'</span>';
 }
-
-/** Narrow horizontal progress bar (for % share columns) */
 function mbar(pct) {
-  return '<span class="mbar-wrap">'
-    + '<span class="mbar-fill" style="width:' + Math.min(pct,100) + '%"></span>'
-    + '</span>';
+  return '<span class="mbar-wrap"><span class="mbar-fill" style="width:'+Math.min(pct,100)+'%"></span></span>';
 }
-
-/** KPI card HTML */
-function kpi(label, val, unit, ac, icon) {
-  return '<div class="kpi-card" style="--ac:' + ac + '">'
-    + '<div class="kpi-label">' + label + '</div>'
-    + '<div class="kpi-value">' + val + (unit ? '<sup>' + unit + '</sup>' : '') + '</div>'
-    + (icon ? '<div class="kpi-icon">' + icon + '</div>' : '')
-    + '</div>';
+function kv(label, val, cls, icon) {
+  return '<div class="kpi" data-icon="'+(icon||'')+'"><div class="kpi-label">'+label+'</div>'
+    +'<div class="kpi-value '+(cls||'')+'">'+val+'</div></div>';
 }
-
-/** Section title with coloured left-bar */
 function secTitle(t) {
-  return '<div class="sec-title"><span class="sec-bar"></span>' + t + '</div>';
+  return '<div class="card-title">'+t+'</div>';
+}
+function pendingNotice(title, body) {
+  return '<div class="pending"><span class="pending-ico">📋</span><div>'
+    +'<div class="pending-title">'+esc(title)+'</div>'
+    +'<div class="pending-body">'+body+'</div>'
+    +'</div></div>';
 }
 
-/**
- * Build the date picker bar for Daily tabs.
- * @param {string} isoVal  Current date in YYYY-MM-DD
- * @param {string} stateKey 'diDate' or 'ddDate'
- * @param {string} todayISO Today as YYYY-MM-DD
- */
+// ── DATE PICKERS ──────────────────────────────────────────────────────
 function datePicker(isoVal, stateKey, todayISO) {
   return '<div class="picker-bar">'
-    + '<span class="picker-label">Date</span>'
-    + '<div class="picker-nav">'
-    +   '<button onclick="shiftDate(\'' + stateKey + '\',-1)" title="Previous day">‹</button>'
-    +   '<button onclick="shiftDate(\'' + stateKey + '\',1)"  title="Next day"' + (isoVal >= todayISO ? ' disabled style="opacity:.35;cursor:not-allowed"' : '') + '>›</button>'
-    + '</div>'
-    + '<input type="date" class="picker-input" value="' + isoVal + '"'
-    + ' max="' + todayISO + '"'
-    + ' onchange="S.' + stateKey + '=this.value;render()">'
-    + (isoVal !== todayISO
-        ? '<button class="picker-today-btn" onclick="S.' + stateKey + '=\'' + todayISO + '\';render()">Today</button>'
-        : '')
-    + '<span class="picker-disp">' + esc(isoToFmt(isoVal)) + '</span>'
-    + '</div>';
+    +'<span class="picker-label">Date</span>'
+    +'<div class="picker-nav">'
+    +'<button onclick="shiftDate(''+stateKey+'',-1)">‹</button>'
+    +'<button onclick="shiftDate(''+stateKey+'',1)"'+(isoVal>=todayISO?' disabled':'')+'">›</button>'
+    +'</div>'
+    +'<input type="date" class="picker-input" value="'+isoVal+'" max="'+todayISO+'"'
+    +' onchange="S.'+stateKey+'=this.value;render()">'
+    +(isoVal!==todayISO?'<button class="picker-today-btn" onclick="S.'+stateKey+'=''+todayISO+'';render()">Today</button>':'')
+    +'<span class="picker-disp">'+esc(isoToFmt(isoVal))+'</span>'
+    +'</div>';
 }
-
-/**
- * Build the month picker bar for Monthly tabs.
- * Allows navigation up to 2 months back from current month.
- * @param {number} year   Currently displayed year
- * @param {number} month  Currently displayed month (1-indexed)
- * @param {string} yrKey  State key for year e.g. 'miYear'
- * @param {string} moKey  State key for month e.g. 'miMonth'
- */
 function monthPicker(year, month, yrKey, moKey) {
-  var currY = today.getFullYear(), currM = today.getMonth()+1;
-  // Min allowed = 2 months before current month
-  var minDate = monthsAgo(today, 2);
-  var minY = minDate.getFullYear(), minM = minDate.getMonth()+1;
-  var atMin = (year === minY && month === minM) || (year < minY) || (year === minY && month < minM);
-  var atMax = (year === currY && month === currM);
-  var displayD = new Date(year, month-1, 1);
-
+  var currY=today.getFullYear(),currM=today.getMonth()+1;
+  var minDate=monthsAgo(today,2),minY=minDate.getFullYear(),minM=minDate.getMonth()+1;
+  var atMin=(year===minY&&month===minM)||(year<minY)||(year===minY&&month<minM);
+  var atMax=(year===currY&&month===currM);
+  var displayD=new Date(year,month-1,1);
   return '<div class="picker-bar">'
-    + '<span class="picker-label">Month</span>'
-    + '<div class="picker-nav">'
-    +   '<button onclick="shiftMonth(\'' + yrKey + '\',\'' + moKey + '\',-1)"'
-    +   (atMin ? ' disabled style="opacity:.35;cursor:not-allowed"' : '') + '>‹</button>'
-    +   '<button onclick="shiftMonth(\'' + yrKey + '\',\'' + moKey + '\',1)"'
-    +   (atMax ? ' disabled style="opacity:.35;cursor:not-allowed"' : '') + '>›</button>'
-    + '</div>'
-    + '<span class="picker-disp">' + fmtMonth(displayD) + '</span>'
-    + ((!atMax) ? '<button class="picker-today-btn" onclick="S.' + yrKey + '='
-      + currY + ';S.' + moKey + '=' + currM + ';render()">Current Month</button>' : '')
-    + '</div>';
+    +'<span class="picker-label">Month</span>'
+    +'<div class="picker-nav">'
+    +'<button onclick="shiftMonth(''+yrKey+'',''+moKey+'',-1)"'+(atMin?' disabled':'')+'">‹</button>'
+    +'<button onclick="shiftMonth(''+yrKey+'',''+moKey+'',1)"'+(atMax?' disabled':'')+'">›</button>'
+    +'</div>'
+    +'<span class="picker-disp">'+fmtMonth(displayD)+'</span>'
+    +(!atMax?'<button class="picker-today-btn" onclick="S.'+yrKey+'='+currY+';S.'+moKey+'='+currM+';render()">Current Month</button>':'')
+    +'</div>';
+}
+function shiftDate(key,n){
+  var d=new Date(S[key]+'T00:00:00');d.setDate(d.getDate()+n);
+  var maxD=dateToISO(today),newISO=dateToISO(d);
+  if(newISO>maxD)return;S[key]=newISO;render();
+}
+function shiftMonth(yrKey,moKey,n){
+  var y=S[yrKey],m=S[moKey]+n;
+  if(m>12){m=1;y++;}if(m<1){m=12;y--;}
+  var currY=today.getFullYear(),currM=today.getMonth()+1;
+  var minD=monthsAgo(today,2),minY=minD.getFullYear(),minM=minD.getMonth()+1;
+  if(y<minY||(y===minY&&m<minM))return;
+  if(y>currY||(y===currY&&m>currM))return;
+  S[yrKey]=y;S[moKey]=m;render();
 }
 
-/** Shift a date state key by n days and re-render */
-function shiftDate(key, n) {
-  var d = new Date(S[key] + 'T00:00:00'); // Parse local midnight
-  d.setDate(d.getDate() + n);
-  var maxD = dateToISO(today);
-  var newISO = dateToISO(d);
-  if (newISO > maxD) return; // Don't go into the future
-  S[key] = newISO;
-  render();
-}
-
-/** Shift a month forward or back within the allowed 2-month window */
-function shiftMonth(yrKey, moKey, n) {
-  var y = S[yrKey], m = S[moKey] + n;
-  if (m > 12) { m = 1;  y++; }
-  if (m < 1)  { m = 12; y--; }
-  // Clamp to [2 months ago, current month]
-  var currY = today.getFullYear(), currM = today.getMonth()+1;
-  var minD  = monthsAgo(today, 2);
-  var minY  = minD.getFullYear(), minM = minD.getMonth()+1;
-  if (y < minY || (y === minY && m < minM)) return;
-  if (y > currY || (y === currY && m > currM)) return;
-  S[yrKey] = y; S[moKey] = m;
-  render();
-}
-
-// ── RENDER ENGINE ────────────────────────────────────────────────────
-
-/** Main render dispatcher — called whenever state changes */
+// ── RENDER ENGINE ─────────────────────────────────────────────────────
 function render() {
-  var pg = document.getElementById('page');
-  var h  = '';
+  var pg=document.getElementById('page');
+  var h='';
 
-  // ── Error banner (fetch failures, bad tab names, etc.) ──
-  if (Object.keys(S.errors).length) {
-    var eh = '';
-    for (var k in S.errors) eh += '<div><strong>' + k + ':</strong> ' + esc(S.errors[k]) + '</div>';
-    h += '<div class="banner banner-err">'
-      + '<span class="banner-ico">⚠️</span>'
-      + '<div class="banner-body">' + eh + '</div>'
-      + '<button class="btn btn-primary" onclick="openModal()" '
-      + 'style="flex-shrink:0;align-self:flex-start;margin-left:8px">Edit Config</button></div>';
+  // Error banner
+  if(Object.keys(S.errors).length){
+    var eh='';
+    for(var k in S.errors)eh+='<div><b>'+k+':</b> '+esc(S.errors[k])+'</div>';
+    h+='<div class="err-banner"><span style="font-size:18px;flex-shrink:0">⚠️</span>'
+      +'<div class="err-banner-body">'+eh+'</div>'
+      +'<button class="btn btn-primary" onclick="openModal()" style="flex-shrink:0;margin-left:8px">Edit Config</button></div>';
   }
 
-  // ── Loading spinner ──
-  if (S.loading) {
-    h += '<div class="loading"><span class="spin">↻</span> Loading from Google Sheets…</div>';
-    pg.innerHTML = h;
-    return;
+  // Loading
+  if(S.loading){
+    h+='<div class="loading"><span class="spin">↻</span> Loading from Google Sheets…</div>';
+    pg.innerHTML=h;return;
   }
 
-  // ── Not connected — no URL configured at all ──
-  // Show a single full-page prompt instead of any tab content.
-  if (!S.cfg.scriptUrl) {
-    h += notConnectedScreen();
-    pg.innerHTML = h;
-    return;
+  // Not connected
+  if(!S.cfg.scriptUrl){
+    h+='<div class="no-conn">'
+      +'<div class="no-conn-hex">⬡</div>'
+      +'<div class="no-conn-title">Connect your Sheets</div>'
+      +'<div class="no-conn-body">No data source configured. Click Connect to link your Inward, Dispatch, Production and Stock sheets.</div>'
+      +'<button class="btn btn-primary" onclick="openModal()" style="margin-top:8px;font-size:11px;padding:10px 22px">⚡ Connect Sheets</button>'
+      +'</div>';
+    pg.innerHTML=h;return;
   }
 
-  // ── Render active tab ──
-  if      (S.tab === 'di') h += renderDailyIn();
-  else if (S.tab === 'mi') h += renderMonthlyIn();
-  else if (S.tab === 'dd') h += renderDailyDis();
-  else if (S.tab === 'md') h += renderMonthlyDis();
-  else if (S.tab === 'pr') h += renderProd();
-  else if (S.tab === 'st') h += renderStock();
-  else if (S.tab === 'au') h += renderAuEntry();
+  if      (S.tab==='ov') h+=renderOverview();
+  else if (S.tab==='di') h+=renderDailyIn();
+  else if (S.tab==='mi') h+=renderMonthlyIn();
+  else if (S.tab==='dd') h+=renderDailyDis();
+  else if (S.tab==='md') h+=renderMonthlyDis();
+  else if (S.tab==='pr') h+=renderProd();
+  else if (S.tab==='st') h+=renderStock();
+  else if (S.tab==='au') h+=renderAuEntry();
 
-  pg.innerHTML = h;
+  pg.innerHTML=h;
   drawCharts();
 
-  // ── Restore focus to stock search input after DOM rebuild ──
-  // When render() replaces innerHTML the input element is destroyed and
-  // recreated, causing the browser to move focus away. We restore it
-  // immediately so the user can keep typing without interruption.
-  if (S.tab === 'st') {
-    var si = document.getElementById('st-search');
-    if (si && document.activeElement !== si) {
-      // Place cursor at end of current value
-      var len = si.value.length;
-      si.focus();
-      try { si.setSelectionRange(len, len); } catch(e) {}
+  // Restore stock search focus
+  if(S.tab==='st'){
+    var si=document.getElementById('st-search');
+    if(si&&document.activeElement!==si){
+      var len=si.value.length;si.focus();
+      try{si.setSelectionRange(len,len);}catch(e){}
     }
   }
 }
 
-/**
- * Full-page "not connected" prompt shown before any Google Sheets URL
- * has been configured. No dummy data is ever shown.
- */
-function notConnectedScreen() {
-  return '<div class="empty-connect">'
-    + '<span class="empty-connect-ico">🔗</span>'
-    + '<div class="empty-connect-title">Connect your Google Sheets</div>'
-    + '<div class="empty-connect-body">'
-    + 'No data source is configured yet. Click below to set up your '
-    + 'Google Apps Script bridge and link your Inward, Dispatch and '
-    + 'Production sheets. Setup takes about 3 minutes.'
-    + '</div>'
-    + '<button class="btn btn-primary" onclick="openModal()" '
-    + 'style="font-size:12px;padding:10px 20px">⚡ Connect Sheets</button>'
-    + '</div>';
+// ── 0. OVERVIEW ───────────────────────────────────────────────────────
+function renderOverview() {
+  var todayFmt = fmt(today);
+  var yestFmt  = fmt(yesterday);
+
+  // Today's inward
+  var inToday   = S.inward.filter(function(r){return r.date===todayFmt;});
+  var inQty     = sumBy(inToday,'qty');
+  var inSups    = {};inToday.forEach(function(r){inSups[r.supplier]=1;});
+  // By material top 4
+  var byMatIn   = {};inToday.forEach(function(r){byMatIn[r.material]=(byMatIn[r.material]||0)+r.qty;});
+  var matInKeys = Object.keys(byMatIn).sort(function(a,b){return byMatIn[b]-byMatIn[a];}).slice(0,4);
+
+  // Today's dispatch
+  var disToday  = S.dispatch.filter(function(r){return r.date===todayFmt;});
+  var disQty    = sumBy(disToday,'qty');
+  var disParties= {};disToday.forEach(function(r){disParties[r.party]=1;});
+  var byProdDis = {};disToday.forEach(function(r){byProdDis[r.product]=(byProdDis[r.product]||0)+r.qty;});
+  var prodDisKeys=Object.keys(byProdDis).sort(function(a,b){return byProdDis[b]-byProdDis[a];}).slice(0,4);
+
+  // Yesterday's production
+  var prod      = S.production.filter(function(r){return r.date===yestFmt&&r.prod>0;});
+  var prodTotal = sumBy(prod,'prod');
+  var byMacPr   = groupBy(prod,'machine');
+
+  // Stock snapshot
+  var stockTotal= sumBy(S.stock,'closing');
+  var stockSqft = sumBy(S.stock,'sqft');
+  var byMacSt   = groupBy(S.stock,'machine');
+
+  var h='';
+
+  // Date header
+  h+='<div class="ov-date">'+today.toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'long',year:'numeric'})+'</div>';
+
+  h+='<div class="ov-grid">';
+
+  // ── Panel 1: Today's Inward ──
+  h+='<div class="ov-panel">'
+    +'<div class="ov-panel-head">'
+    +'<div class="ov-panel-title">↓ Today's Inward · '+esc(todayFmt)+'</div>'
+    +'<div class="ov-panel-action" onclick="switchTabById('di')">View Detail →</div>'
+    +'</div>';
+  if(!S.inwardLoaded){h+=pendingNotice('Not Loaded','Connect to load inward data.');}
+  else {
+    h+='<div class="ov-kpi-row">'
+      +'<div class="ov-kpi"><div class="ov-kpi-label">Qty Received</div><div class="ov-kpi-val amber">'+ni(inQty)+'</div></div>'
+      +'<div class="ov-kpi"><div class="ov-kpi-label">Trips</div><div class="ov-kpi-val">'+inToday.length+'</div></div>'
+      +'<div class="ov-kpi"><div class="ov-kpi-label">Suppliers</div><div class="ov-kpi-val">'+Object.keys(inSups).length+'</div></div>'
+      +'</div>';
+    if(matInKeys.length){
+      h+='<div class="ov-rows">';
+      var inMax=byMatIn[matInKeys[0]]||1;
+      matInKeys.forEach(function(m,i){
+        var pct=byMatIn[m]/inMax*100;
+        h+='<div class="ov-row">'
+          +'<div class="ov-row-dot" style="background:'+PALETTE[i%PALETTE.length]+'"></div>'
+          +'<div class="ov-row-label">'+esc(m)+'</div>'
+          +'<div class="ov-row-val">'+ni(byMatIn[m])+'</div>'
+          +'</div>';
+      });
+      h+='</div>';
+    } else {
+      h+='<div class="ov-empty">No inward entries today</div>';
+    }
+  }
+  h+='</div>';
+
+  // ── Panel 2: Today's Dispatch ──
+  h+='<div class="ov-panel green-l">'
+    +'<div class="ov-panel-head">'
+    +'<div class="ov-panel-title">↑ Today's Dispatch · '+esc(todayFmt)+'</div>'
+    +'<div class="ov-panel-action" onclick="switchTabById('dd')">View Detail →</div>'
+    +'</div>';
+  if(!S.dispatchLoaded){h+=pendingNotice('Not Loaded','Connect to load dispatch data.');}
+  else {
+    h+='<div class="ov-kpi-row">'
+      +'<div class="ov-kpi"><div class="ov-kpi-label">Qty Dispatched</div><div class="ov-kpi-val green">'+ni(disQty)+'</div></div>'
+      +'<div class="ov-kpi"><div class="ov-kpi-label">Trips</div><div class="ov-kpi-val">'+disToday.length+'</div></div>'
+      +'<div class="ov-kpi"><div class="ov-kpi-label">Parties</div><div class="ov-kpi-val">'+Object.keys(disParties).length+'</div></div>'
+      +'</div>';
+    if(prodDisKeys.length){
+      h+='<div class="ov-rows">';
+      var disMax=byProdDis[prodDisKeys[0]]||1;
+      prodDisKeys.forEach(function(p,i){
+        h+='<div class="ov-row">'
+          +'<div class="ov-row-dot" style="background:'+PALETTE[i%PALETTE.length]+'"></div>'
+          +'<div class="ov-row-label">'+esc(p)+'</div>'
+          +'<div class="ov-row-val">'+ni(byProdDis[p])+'</div>'
+          +'</div>';
+      });
+      h+='</div>';
+    } else {
+      h+='<div class="ov-empty">No dispatch entries today</div>';
+    }
+  }
+  h+='</div>';
+
+  // ── Panel 3: Yesterday's Production ──
+  h+='<div class="ov-panel blue-l">'
+    +'<div class="ov-panel-head">'
+    +'<div class="ov-panel-title">⚙ Production · '+esc(yestFmt)+' (Yesterday)</div>'
+    +'<div class="ov-panel-action" onclick="switchTabById('pr')">View Detail →</div>'
+    +'</div>';
+  if(!S.productionLoaded){h+=pendingNotice('Not Loaded','Connect to load production data.');}
+  else if(!prod.length){
+    h+='<div class="ov-empty">Production data not uploaded yet for '+esc(yestFmt)+'</div>';
+  } else {
+    h+='<div class="ov-kpi-row">'
+      +'<div class="ov-kpi"><div class="ov-kpi-label">Units Produced</div><div class="ov-kpi-val blue">'+ni(prodTotal)+'</div></div>'
+      +'<div class="ov-kpi"><div class="ov-kpi-label">Machines</div><div class="ov-kpi-val">'+Object.keys(byMacPr).length+'</div></div>'
+      +'<div class="ov-kpi"><div class="ov-kpi-label">Variants</div><div class="ov-kpi-val">'+prod.length+'</div></div>'
+      +'</div>';
+    h+='<div class="ov-rows">';
+    Object.keys(byMacPr).forEach(function(m,i){
+      h+='<div class="ov-row">'
+        +'<div class="ov-row-dot" style="background:'+PALETTE[i%PALETTE.length]+'"></div>'
+        +'<div class="ov-row-label">'+esc(m)+'</div>'
+        +'<div class="ov-row-val">'+ni(sumBy(byMacPr[m],'prod'))+' units</div>'
+        +'</div>';
+    });
+    h+='</div>';
+  }
+  h+='</div>';
+
+  // ── Panel 4: Stock Snapshot ──
+  h+='<div class="ov-panel" style="border-left-color:var(--dim)">'
+    +'<div class="ov-panel-head">'
+    +'<div class="ov-panel-title">▦ Stock · '+esc(AUTO_PROD_TAB)+(S.stockAsOf?' · '+esc(S.stockAsOf):'')+'</div>'
+    +'<div class="ov-panel-action" onclick="switchTabById('st')">View Detail →</div>'
+    +'</div>';
+  if(!S.stockLoaded){h+=pendingNotice('Not Loaded','Connect to load stock data.');}
+  else if(!S.stock.length){
+    h+='<div class="ov-empty">No stock data available</div>';
+  } else {
+    h+='<div class="ov-kpi-row">'
+      +'<div class="ov-kpi"><div class="ov-kpi-label">Total Units</div><div class="ov-kpi-val amber">'+ni(stockTotal)+'</div></div>'
+      +'<div class="ov-kpi"><div class="ov-kpi-label">Sq. Ft.</div><div class="ov-kpi-val">'+stockSqft.toLocaleString('en-IN',{maximumFractionDigits:0})+'</div></div>'
+      +'<div class="ov-kpi"><div class="ov-kpi-label">Machines</div><div class="ov-kpi-val">'+Object.keys(byMacSt).length+'</div></div>'
+      +'</div>';
+    h+='<div class="ov-rows">';
+    Object.keys(byMacSt).slice(0,4).forEach(function(m,i){
+      h+='<div class="ov-row">'
+        +'<div class="ov-row-dot" style="background:'+PALETTE[i%PALETTE.length]+'"></div>'
+        +'<div class="ov-row-label">'+esc(m)+'</div>'
+        +'<div class="ov-row-val">'+ni(sumBy(byMacSt[m],'closing'))+'</div>'
+        +'</div>';
+    });
+    h+='</div>';
+  }
+  h+='</div>';
+
+  h+='</div>'; // end ov-grid
+  window._ch_di=null;window._ch_mi=null;window._ch_dd=null;window._ch_md=null;window._ch_pr=null;
+  return h;
 }
 
-/**
- * "Data not uploaded" notice shown inside a tab when the sheet connected
- * successfully but returned 0 rows for the requested date / period.
- * Different from an error — the sheet is reachable, data just isn't there yet.
- *
- * @param {string} title   Short headline e.g. "Production Data Not Uploaded"
- * @param {string} body    Explanatory sentence
- */
-function pendingNotice(title, body) {
-  return '<div class="empty-pending">'
-    + '<span class="empty-pending-ico">📋</span>'
-    + '<div>'
-    + '<div class="empty-pending-title">' + esc(title) + '</div>'
-    + '<div class="empty-pending-body">' + body + '</div>'
-    + '</div></div>';
+function switchTabById(id){
+  var btns=document.querySelectorAll('.top-nav-btn, .bot-btn');
+  btns.forEach(function(b){
+    if(b.dataset.tab===id){b.classList.add('active');}
+    else{b.classList.remove('active');}
+  });
+  S.tab=id;render();
 }
-
 // ── 1. DAILY INWARD ──────────────────────────────────────────────────
 function renderDailyIn() {
   var todayISO = dateToISO(today);
@@ -2580,21 +3048,20 @@ function renderStock() {
   h += '</div>';
   return h;
 }
-// ── 7. AU ENTRY ───────────────────────────────────────────────────────
-/**
- * AU Entry tab — a standalone data entry form.
- * Fields: Entered By (dropdown), Date (prefilled today), Party Name,
- * Amount (numeric), Remarks (free text).
- *
- * On submit, the data is sent to the AU sheet via the existing JSONP
- * GAS endpoint using GET params. The GAS writeAuEntry() function
- * appends a new row to the first sheet of AU_SHEET_ID.
- *
- * Important: the form is rendered as a static HTML string but the
- * submit handler (submitAuEntry) reads values directly from the DOM —
- * it does NOT call render() on input, avoiding the cursor-jump problem.
- * After a successful submit the form resets and a success toast is shown.
- */
+
+// ── KPI COMPAT SHIM ──────────────────────────────────────────────────
+// Old render functions call kpi(label, val, unit, accentColour, icon)
+// New design uses colour classes instead of inline colours.
+function kpi(label, val, unit, ac, icon) {
+  var cls = '';
+  if (ac === '#E8A020' || ac === '#B87D14') cls = 'amber';
+  else if (ac === '#0F9E6E') cls = 'green';
+  else if (ac === '#1A6FC4') cls = 'blue';
+  else if (ac === '#D63030') cls = 'red';
+  var display = val + (unit ? '<sup style="font-size:11px;font-family:var(--ff-body);color:var(--text3);margin-left:2px">'+unit+'</sup>' : '');
+  return '<div class="kpi" data-icon="'+(icon||'')+'"><div class="kpi-label">'+label+'</div>'
+    +'<div class="kpi-value '+cls+'">'+display+'</div></div>';
+}
 function renderAuEntry() {
   var h = '<div class="au-wrap">';
 
@@ -3178,31 +3645,31 @@ function sumBy(arr, key) {
 // ── HEADER & NAV ──────────────────────────────────────────────────────
 
 function updateHeader() {
-  var el = document.getElementById('hdr-date');
-  if (el) el.textContent = today.toLocaleDateString('en-IN',
-    {weekday:'long', day:'2-digit', month:'long', year:'numeric'});
-
   var badge = document.getElementById('hdr-badge');
   var rb    = document.getElementById('btn-refresh');
   if (S.isLive) {
-    badge.className = 'badge badge-live';
-    badge.innerHTML = '<span class="pulse pulse-green"></span>Live · '
+    badge.className = 'live-badge';
+    badge.innerHTML = '<span class="pulse pulse-g"></span>Live · '
       + S.lastRefresh.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
-    if (rb) rb.style.display = 'inline-flex';
+    if (rb) rb.style.display = 'flex';
   } else {
-    badge.className = 'badge badge-demo';
-    badge.innerHTML = '<span class="pulse pulse-amber"></span>Demo Data';
+    badge.className = 'demo-badge';
+    badge.innerHTML = '<span class="pulse pulse-a"></span>'
+      + (S.cfg.scriptUrl ? 'Connecting…' : 'Not Connected');
     if (rb) rb.style.display = 'none';
   }
 }
 
+
 function switchTab(btn) {
-  document.querySelectorAll('.nav-btn').forEach(function(b){ b.classList.remove('active'); });
-  btn.classList.add('active');
+  // Update both desktop top-nav and mobile bottom-nav
+  document.querySelectorAll('.top-nav-btn, .bot-btn').forEach(function(b){
+    if(b.dataset.tab === btn.dataset.tab) b.classList.add('active');
+    else b.classList.remove('active');
+  });
   S.tab = btn.dataset.tab;
   render();
 }
-
 /**
  * Stock search handler — called on every keystroke in the stock search input.
  *
@@ -3247,9 +3714,8 @@ function openModal() {
   document.getElementById('cfg-url').value  = S.cfg.scriptUrl  || '';
   document.getElementById('cfg-it').value   = S.cfg.inwardTab  || 'Inward';
   document.getElementById('cfg-dt').value   = S.cfg.dispatchTab|| 'Dispatch';
-  document.getElementById('cfg-pt').value   = S.cfg.productionTab || AUTO_PROD_TAB;
-  document.getElementById('pt-hint').textContent =
-    'Auto-value for this month: ' + AUTO_PROD_TAB + '. Update each month.';
+  var hint = document.getElementById('auto-prod-hint');
+  if (hint) hint.textContent = AUTO_PROD_TAB;
   document.getElementById('gas-code-pre').textContent = GAS_CODE;
   document.getElementById('modal').style.display = 'flex';
   clearTestRes();
@@ -3260,14 +3726,16 @@ function closeModalBg(e) { if (e.target === document.getElementById('modal')) cl
 
 function saveAndConnect() {
   var cfg = {
-    scriptUrl:     document.getElementById('cfg-url').value.trim(),
-    inwardTab:     document.getElementById('cfg-it').value.trim()  || 'Inward',
-    dispatchTab:   document.getElementById('cfg-dt').value.trim()  || 'Dispatch',
-    productionTab: document.getElementById('cfg-pt').value.trim()  || AUTO_PROD_TAB,
+    scriptUrl:         document.getElementById('cfg-url').value.trim(),
+    inwardTab:         document.getElementById('cfg-it').value.trim()  || 'Inward',
+    dispatchTab:       document.getElementById('cfg-dt').value.trim()  || 'Dispatch',
+    productionTab:     AUTO_PROD_TAB,
+    inwardSheetId:     S.cfg.inwardSheetId     || '',
+    dispatchSheetId:   S.cfg.dispatchSheetId   || '',
+    productionSheetId: S.cfg.productionSheetId || '',
   };
   S.cfg = cfg;
-  // Save to all 3 storage layers (localStorage, sessionStorage, URL hash)
-  saveConfig(cfg, false);
+  saveLocalConfig(cfg);
   closeModal();
   if (cfg.scriptUrl) loadData();
 }
@@ -3277,66 +3745,29 @@ function clearTestRes() {
   e.style.display = 'none'; e.textContent = '';
 }
 
-/**
- * Copy the current page URL (which includes the config in the #cfg= hash)
- * to the clipboard. Users should bookmark or save THIS URL — not the plain
- * page URL — so their settings survive storage purges.
- *
- * On iOS: after tapping "Connect & Load Data", use this button and then
- * "Add to Home Screen" using this URL so the PWA launches with settings intact.
- */
-function copyShareLink() {
-  var url = window.location.href;
-  // Ensure the URL has the latest config embedded
-  if (S.cfg.scriptUrl && url.indexOf('#cfg=') === -1) {
-    url = window.location.pathname + window.location.search
-        + '#cfg=' + encodeConfig(S.cfg);
-  }
-  navigator.clipboard.writeText(url).then(function() {
-    var b = document.getElementById('copy-link-btn');
-    var orig = b.textContent;
-    b.textContent = '✓ Link copied!';
-    b.style.background = 'var(--green)';
-    b.style.color = '#fff';
-    setTimeout(function(){
-      b.textContent = orig;
-      b.style.background = '';
-      b.style.color = '';
-    }, 2500);
-  }).catch(function() {
-    // Fallback for older iOS versions
-    prompt('Copy this URL (it contains your settings):', url);
-  });
-}
 
-async function testConn() {
-  var url = document.getElementById('cfg-url').value.trim();
-  if (!url) { showTestRes(false, 'Paste the Web App URL first'); return; }
-  var btn = document.getElementById('test-btn');
-  btn.textContent = '↻ Testing…'; btn.disabled = true;
-  try {
-    var result = await new Promise(function(resolve, reject) {
-      var cb = '_ping_' + Date.now();
-      var t  = setTimeout(function() {
-        delete window[cb];
-        reject(new Error('Timeout — check URL ends in /exec and script is deployed as Anyone'));
-      }, 12000);
-      window[cb] = function(d) { clearTimeout(t); delete window[cb]; resolve(d); };
-      var base = url.replace(/[?&].*$/, '');
-      var s    = document.createElement('script');
-      s.src    = base + '?register=__ping__&tab=__ping__&callback=' + cb + '&t=' + Date.now();
-      s.onerror= function(){ clearTimeout(t); delete window[cb]; reject(new Error('Script URL invalid')); };
+
+async function testConn(){
+  var url=document.getElementById('cfg-url').value.trim();
+  if(!url){showTestRes(false,'Paste the Web App URL first');return;}
+  var btn=document.getElementById('test-btn');
+  btn.textContent='↻ Testing…';btn.disabled=true;
+  try{
+    var result=await new Promise(function(resolve,reject){
+      var cb='_ping_'+Date.now();
+      var t=setTimeout(function(){delete window[cb];reject(new Error('Timeout'));},12000);
+      window[cb]=function(d){clearTimeout(t);delete window[cb];resolve(d);};
+      var base=url.replace(/[?&].*$/,'');
+      var s=document.createElement('script');
+      s.src=base+'?register=__ping__&tab=__ping__&callback='+cb+'&t='+Date.now();
+      s.onerror=function(){clearTimeout(t);delete window[cb];reject(new Error('Script URL invalid'));};
       document.head.appendChild(s);
     });
-    if (result.ok) showTestRes(true, result.msg || 'Connected!');
-    else           showTestRes(false, result.error || 'Unexpected response from script');
-  } catch(e) {
-    showTestRes(false, e.message);
-  } finally {
-    btn.textContent = '🔌 Test Connection'; btn.disabled = false;
-  }
+    if(result.ok)showTestRes(true,result.msg||'Connected!');
+    else showTestRes(false,result.error||'Unexpected response');
+  }catch(e){showTestRes(false,e.message);}
+  finally{btn.textContent='🔌 Test Connection';btn.disabled=false;}
 }
-
 function showTestRes(ok, msg) {
   var e = document.getElementById('test-res');
   e.style.display = 'block';
@@ -3359,31 +3790,57 @@ function downloadCode() {
   a.click();
 }
 
+/**
+ * Copy the current page URL (which includes the config in the #cfg= hash)
+ * to the clipboard. Users should bookmark or use THIS URL as their home
+ * screen shortcut so settings survive iOS storage purges.
+ */
+function copyShareLink() {
+  var url = window.location.href;
+  if (S.cfg.scriptUrl && url.indexOf('#cfg=') === -1) {
+    url = window.location.pathname + window.location.search
+        + '#cfg=' + encodeConfig(S.cfg);
+  }
+  navigator.clipboard.writeText(url).then(function() {
+    var b = document.getElementById('copy-link-btn');
+    var orig = b.textContent;
+    b.textContent = '✓ Link Copied!';
+    b.style.background = 'var(--green)';
+    b.style.color = '#000';
+    setTimeout(function(){
+      b.textContent = orig;
+      b.style.background = '';
+      b.style.color = '';
+    }, 2500);
+  }).catch(function() {
+    prompt('Copy this URL (it contains your settings):', url);
+  });
+}
+
 // ── AUTO-REFRESH & INIT ───────────────────────────────────────────────
 
-// ── Register Service Worker (enables PWA install + offline shell) ──
-// The SW file must exist at the root of your GitHub Pages repo.
-// It caches the dashboard HTML and fonts for offline use.
+// Register Service Worker
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
     navigator.serviceWorker.register('sw.js').then(function(reg) {
       console.info('[Helix] Service Worker registered, scope:', reg.scope);
     }).catch(function(err) {
-      // Non-fatal — app works without SW, just no offline support
       console.info('[Helix] Service Worker registration skipped:', err.message);
     });
   });
 }
 
-// Auto-refresh live data every 15 minutes
-setInterval(function(){ if (S.isLive) loadData(); }, 15 * 60 * 1000);
+// Auto-refresh live data every 5 minutes
+setInterval(function(){ if (S.isLive) loadData(); }, 5 * 60 * 1000);
 
-// Initialise header and render first view (no demo data — shows connect prompt if unconfigured)
+// Show a loading state immediately while config.json is being fetched
+// bootstrapConfig() will call updateHeader() + render() once config is ready
 updateHeader();
-render();
+render(); // Shows loading spinner / not-connected screen instantly
 
-// If a URL was saved previously, auto-load live data on startup
-if (S.cfg.scriptUrl) loadData();
+// Fetch config.json from GitHub, merge with local overrides, then start
+bootstrapConfig();
+
 
 </script>
 </body>
