@@ -1,0 +1,12 @@
+{
+  "_comment": "Helix Industries Dashboard — Central Config. This is the ONLY file you ever need to edit. Update scriptUrl after every GAS redeployment. Push to GitHub — all users get it automatically. productionTab is NOT here — it is computed automatically from today's date.",
+
+  "scriptUrl":          "https://script.google.com/macros/s/AKfycbzPgvRS3GHVhHIUvLewB2L-JViwH5OD_HdRUoAhv-pG-dTfgaCPpznHAstu27wgQZw2qw/exec",
+
+  "inwardSheetId":      "1bnYCSCMFb6FeU1pPaE66smxYu4xGRUO_Pq2egxIpskM",
+  "dispatchSheetId":    "1bnYCSCMFb6FeU1pPaE66smxYu4xGRUO_Pq2egxIpskM",
+  "productionSheetId":  "1KXkWqKee_4TW0NR7MOSkncRO5xjz_NksD6d48tx9ZB4",
+
+  "inwardTab":          "Inward",
+  "dispatchTab":        "Combined"
+}
