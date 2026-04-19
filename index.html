@@ -95,6 +95,9 @@ html, body {
   font-family: var(--ff-body);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  /* Ensure the page scrolls on all devices */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 ::-webkit-scrollbar { width: 4px; height: 4px }
@@ -110,11 +113,15 @@ html, body {
 .bot-nav {
   padding-bottom: max(0px, env(safe-area-inset-bottom));
 }
+/* Page bottom padding must always clear the fixed bottom nav (56px)
+   plus the home-bar safe area. This applies on ALL screen sizes when
+   the bottom nav is visible (mobile). On desktop it is overridden below. */
 .page {
-  padding-bottom: max(16px, calc(env(safe-area-inset-bottom) + 72px));
+  /* 72px = bottom nav height (56px) + extra breathing room (16px) */
+  padding-bottom: max(72px, calc(env(safe-area-inset-bottom) + 72px));
 }
 @media (display-mode: standalone) {
-  html, body { height: 100%; }
+  html, body { height: 100%; overflow-y: auto; }
 }
 
 /* ── HEADER ───────────────────────────────────────── */
@@ -237,9 +244,12 @@ html, body {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 300;
   background: var(--white);
   border-top: 1px solid var(--border);
-  grid-template-columns: repeat(7, 1fr);
+  /* 8 tabs */
+  grid-template-columns: repeat(8, 1fr);
   align-items: stretch;
   box-shadow: 0 -2px 12px rgba(15,25,35,.07);
+  /* Explicit height so page padding can match exactly */
+  min-height: 56px;
 }
 .bot-btn {
   display: flex; flex-direction: column; align-items: center;
@@ -263,8 +273,10 @@ html, body {
 /* ── PAGE ─────────────────────────────────────────── */
 .page {
   padding: 16px 20px;
+  /* bottom padding is set in PWA safe area block above */
   display: flex; flex-direction: column; gap: 14px;
   max-width: 1400px; width: 100%; margin: 0 auto;
+  box-sizing: border-box;
 }
 
 /* ── CARD ─────────────────────────────────────────── */
@@ -863,19 +875,37 @@ details .inner {
   :root { font-size: 13px }
   .hdr { padding-left: max(14px, calc(env(safe-area-inset-left) + 14px));
          padding-right: max(14px, calc(env(safe-area-inset-right) + 14px)) }
-  .brand-name { font-size: 15px }
+  .brand-name { font-size: 14px }
   .brand-dept { display: none }
   /* Show bottom nav, hide top nav */
   .top-nav-wrap { display: none }
   .bot-nav { display: grid }
-  .page { padding: 12px 14px; gap: 12px }
+  /* Page: reduce side padding on mobile but KEEP the bottom padding
+     so content is never hidden behind the fixed bottom nav.
+     padding-bottom is inherited from the PWA safe area block above. */
+  .page {
+    padding-top: 12px;
+    padding-left: 12px;
+    padding-right: 12px;
+    gap: 12px;
+    /* Do NOT set padding-bottom here — it is controlled by the
+       safe-area block to always clear the bottom nav */
+    padding-bottom: max(72px, calc(env(safe-area-inset-bottom) + 72px));
+  }
   .ov-grid { grid-template-columns: 1fr }
   .kpi-grid { grid-template-columns: repeat(2,1fr) }
   .kpi-value { font-size: 22px }
   .charts-row.col2 { grid-template-columns: 1fr }
-  .tw { max-height: 340px }
-  table { min-width: 440px }
-  thead th { padding: 7px 9px }
+  /* Tables: allow horizontal scroll, remove max-height cap on mobile
+     so rows are not cut off — the page itself scrolls vertically */
+  .tw {
+    overflow-x: auto;
+    overflow-y: visible;
+    max-height: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  table { min-width: 420px }
+  thead th { padding: 7px 9px; font-size: 8px }
   tbody td { padding: 7px 9px }
   .modal { padding: 16px; width: 96vw }
   .fg,.fg3 { grid-template-columns: 1fr }
@@ -883,10 +913,15 @@ details .inner {
   .au-body { padding: 16px 16px 10px }
   .au-footer { padding: 12px 16px 16px }
   .mac-head { padding: 11px 14px }
+  /* Stock search: full width on mobile */
+  .srch { min-width: 0; width: 100% }
 }
 @media (max-width: 420px) {
   .kpi-value { font-size: 20px }
   .ov-kpi-val { font-size: 19px }
+  .bot-btn { font-size: 7px; padding: 6px 1px }
+  .bot-btn .bi { font-size: 15px }
+  table { min-width: 380px }
 }
 </style>
 </head>
