@@ -1227,24 +1227,41 @@ function saveLocalConfig(cfg) {
 
 /**
  * Fetch config.json from the same origin as the page.
- * Returns a promise that resolves to the config object, or null on failure.
- * Uses a cache-busting timestamp so GitHub Pages CDN always serves fresh.
+ * Tries multiple paths in case the repo has a subfolder structure.
+ * Returns the config object on success, or null on any failure.
  */
 function fetchRemoteConfig() {
-  return fetch('./config.json?t=' + Date.now())
+  // Try both relative and absolute paths to handle GitHub Pages
+  // subdirectory repos (e.g. username.github.io/reponame/)
+  var paths = ['./config.json', 'config.json'];
+  var attempt = paths[0] + '?t=' + Date.now();
+
+  return fetch(attempt)
     .then(function(r) {
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return r.json();
+      if (!r.ok) throw new Error('HTTP ' + r.status + ' fetching config.json');
+      return r.text(); // Read as text first so we can log it on parse error
     })
-    .then(function(data) {
-      // Validate it has at least a scriptUrl
-      if (!data || typeof data.scriptUrl !== 'string') return null;
-      console.info('[Helix] Config loaded from config.json');
+    .then(function(text) {
+      var data;
+      try {
+        data = JSON.parse(text);
+      } catch(e) {
+        console.error('[Helix] config.json is not valid JSON:', e.message);
+        console.error('[Helix] Raw content received:', text.substring(0, 300));
+        return null;
+      }
+      if (!data || typeof data.scriptUrl !== 'string' || !data.scriptUrl) {
+        console.warn('[Helix] config.json loaded but scriptUrl is missing or empty.');
+        console.warn('[Helix] Config received:', JSON.stringify(data));
+        // Still return the data — Sheet IDs and tab names may be useful
+        return data || null;
+      }
+      console.info('[Helix] config.json loaded ✓ scriptUrl:', data.scriptUrl.substring(0, 60) + '…');
       return data;
     })
     .catch(function(e) {
-      console.warn('[Helix] Could not fetch config.json:', e.message,
-        '— falling back to local storage');
+      console.warn('[Helix] Could not fetch config.json:', e.message);
+      console.warn('[Helix] Dashboard will fall back to localStorage if available.');
       return null;
     });
 }
@@ -1274,15 +1291,26 @@ async function bootstrapConfig() {
       productionSheetId: remote.productionSheetId || (local && local.productionSheetId) || '',
     };
   } else if (local) {
+    // config.json unavailable — use localStorage (offline or first setup)
     cfg = local;
   } else {
     cfg = { scriptUrl:'', inwardTab:'Inward', dispatchTab:'Dispatch',
             inwardSheetId:'', dispatchSheetId:'', productionSheetId:'' };
   }
 
-  // productionTab is always AUTO_PROD_TAB — computed from today's date.
-  // Never stored, never configured — rolls over automatically each month.
+  // productionTab always computed from today — never configured manually
   cfg.productionTab = AUTO_PROD_TAB;
+
+  // Log what we ended up with for debugging
+  console.info('[Helix] Final config:', {
+    scriptUrl: cfg.scriptUrl ? cfg.scriptUrl.substring(0,60)+'…' : '(empty)',
+    inwardSheetId:     cfg.inwardSheetId     ? '✓ set' : '✗ missing',
+    dispatchSheetId:   cfg.dispatchSheetId   ? '✓ set' : '✗ missing',
+    productionSheetId: cfg.productionSheetId ? '✓ set' : '✗ missing',
+    inwardTab:    cfg.inwardTab,
+    dispatchTab:  cfg.dispatchTab,
+    productionTab:cfg.productionTab,
+  });
 
   S.cfg = cfg;
   updateHeader();
