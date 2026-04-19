@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
 <title>Helix Industries — Operations</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
 <meta name="apple-mobile-web-app-title" content="Helix Ops"/>
 <meta name="theme-color" content="#1E2D3D"/>
@@ -2042,12 +2043,12 @@ function datePicker(isoVal, stateKey, todayISO) {
   return '<div class="picker-bar">'
     +'<span class="picker-label">Date</span>'
     +'<div class="picker-nav">'
-    +'<button onclick="shiftDate(''+stateKey+'',-1)">‹</button>'
-    +'<button onclick="shiftDate(''+stateKey+'',1)"'+(isoVal>=todayISO?' disabled':'')+'">›</button>'
+    +'<button onclick="shiftDate(\''+stateKey+'\',-1)">‹</button>'
+    +'<button onclick="shiftDate(\''+stateKey+'\',1)"'+(isoVal>=todayISO?' disabled':'')+'">›</button>'
     +'</div>'
     +'<input type="date" class="picker-input" value="'+isoVal+'" max="'+todayISO+'"'
     +' onchange="S.'+stateKey+'=this.value;render()">'
-    +(isoVal!==todayISO?'<button class="picker-today-btn" onclick="S.'+stateKey+'=''+todayISO+'';render()">Today</button>':'')
+    +(isoVal!==todayISO?'<button class="picker-today-btn" onclick="S.'+stateKey+'=\''+todayISO+'\';render()">Today</button>':'')
     +'<span class="picker-disp">'+esc(isoToFmt(isoVal))+'</span>'
     +'</div>';
 }
@@ -2060,8 +2061,8 @@ function monthPicker(year, month, yrKey, moKey) {
   return '<div class="picker-bar">'
     +'<span class="picker-label">Month</span>'
     +'<div class="picker-nav">'
-    +'<button onclick="shiftMonth(''+yrKey+'',''+moKey+'',-1)"'+(atMin?' disabled':'')+'">‹</button>'
-    +'<button onclick="shiftMonth(''+yrKey+'',''+moKey+'',1)"'+(atMax?' disabled':'')+'">›</button>'
+    +'<button onclick="shiftMonth(\''+yrKey+'\',\''+moKey+'\',-1)"'+(atMin?' disabled':'')+'">‹</button>'
+    +'<button onclick="shiftMonth(\''+yrKey+'\',\''+moKey+'\',1)"'+(atMax?' disabled':'')+'">›</button>'
     +'</div>'
     +'<span class="picker-disp">'+fmtMonth(displayD)+'</span>'
     +(!atMax?'<button class="picker-today-btn" onclick="S.'+yrKey+'='+currY+';S.'+moKey+'='+currM+';render()">Current Month</button>':'')
@@ -2176,7 +2177,7 @@ function renderOverview() {
   h+='<div class="ov-panel">'
     +'<div class="ov-panel-head">'
     +'<div class="ov-panel-title">↓ Today's Inward · '+esc(todayFmt)+'</div>'
-    +'<div class="ov-panel-action" onclick="switchTabById('di')">View Detail →</div>'
+    +'<div class="ov-panel-action" onclick="switchTabById(\'di\')">View Detail →</div>'
     +'</div>';
   if(!S.inwardLoaded){h+=pendingNotice('Not Loaded','Connect to load inward data.');}
   else {
@@ -2207,7 +2208,7 @@ function renderOverview() {
   h+='<div class="ov-panel green-l">'
     +'<div class="ov-panel-head">'
     +'<div class="ov-panel-title">↑ Today's Dispatch · '+esc(todayFmt)+'</div>'
-    +'<div class="ov-panel-action" onclick="switchTabById('dd')">View Detail →</div>'
+    +'<div class="ov-panel-action" onclick="switchTabById(\'dd\')">View Detail →</div>'
     +'</div>';
   if(!S.dispatchLoaded){h+=pendingNotice('Not Loaded','Connect to load dispatch data.');}
   else {
@@ -2237,7 +2238,7 @@ function renderOverview() {
   h+='<div class="ov-panel blue-l">'
     +'<div class="ov-panel-head">'
     +'<div class="ov-panel-title">⚙ Production · '+esc(yestFmt)+' (Yesterday)</div>'
-    +'<div class="ov-panel-action" onclick="switchTabById('pr')">View Detail →</div>'
+    +'<div class="ov-panel-action" onclick="switchTabById(\'pr\')">View Detail →</div>'
     +'</div>';
   if(!S.productionLoaded){h+=pendingNotice('Not Loaded','Connect to load production data.');}
   else if(!prod.length){
@@ -2264,7 +2265,7 @@ function renderOverview() {
   h+='<div class="ov-panel" style="border-left-color:var(--dim)">'
     +'<div class="ov-panel-head">'
     +'<div class="ov-panel-title">▦ Stock · '+esc(AUTO_PROD_TAB)+(S.stockAsOf?' · '+esc(S.stockAsOf):'')+'</div>'
-    +'<div class="ov-panel-action" onclick="switchTabById('st')">View Detail →</div>'
+    +'<div class="ov-panel-action" onclick="switchTabById(\'st\')">View Detail →</div>'
     +'</div>';
   if(!S.stockLoaded){h+=pendingNotice('Not Loaded','Connect to load stock data.');}
   else if(!S.stock.length){
