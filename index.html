@@ -2176,7 +2176,7 @@ function renderOverview() {
   // ── Panel 1: Today's Inward ──
   h+='<div class="ov-panel">'
     +'<div class="ov-panel-head">'
-    +'<div class="ov-panel-title">↓ Today's Inward · '+esc(todayFmt)+'</div>'
+    +'<div class="ov-panel-title">↓ Today&#39;s Inward · '+esc(todayFmt)+'</div>'
     +'<div class="ov-panel-action" onclick="switchTabById(\'di\')">View Detail →</div>'
     +'</div>';
   if(!S.inwardLoaded){h+=pendingNotice('Not Loaded','Connect to load inward data.');}
@@ -2207,7 +2207,7 @@ function renderOverview() {
   // ── Panel 2: Today's Dispatch ──
   h+='<div class="ov-panel green-l">'
     +'<div class="ov-panel-head">'
-    +'<div class="ov-panel-title">↑ Today's Dispatch · '+esc(todayFmt)+'</div>'
+    +'<div class="ov-panel-title">↑ Today&#39;s Dispatch · '+esc(todayFmt)+'</div>'
     +'<div class="ov-panel-action" onclick="switchTabById(\'dd\')">View Detail →</div>'
     +'</div>';
   if(!S.dispatchLoaded){h+=pendingNotice('Not Loaded','Connect to load dispatch data.');}
