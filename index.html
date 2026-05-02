@@ -1053,8 +1053,17 @@ details .inner {
 // ── CONSTANTS (declared first — everything else depends on these) ────
 var today     = new Date();
 var yesterday = new Date(today); yesterday.setDate(today.getDate()-1);
-// Auto-generate current month's production tab name e.g. "Mar-26"
-var AUTO_PROD_TAB = today.toLocaleDateString('en-GB',{month:'short',year:'2-digit'}).replace(' ','-');
+
+// Month abbreviations — must be declared before AUTO_PROD_TAB and fmt()
+var MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun',
+                    'Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// Current month tab name e.g. "May-26" — computed without locale dependency
+var AUTO_PROD_TAB = (function() {
+  var mon = MONTHS_SHORT[today.getMonth()];
+  var yr  = String(today.getFullYear()).slice(-2);
+  return mon + '-' + yr;
+})();
 
 var COLORS = {
   Grey:'#9CA3AF','Dark Grey':'#6B7280',Red:'#EF4444',Yellow:'#F5A623',
@@ -1069,9 +1078,16 @@ var PALETTE = ['#E8A020','#1A6FC4','#0F9E6E','#D63030','#7C3E0A',
 
 // ── DATE / TIME UTILITIES ────────────────────────────────────────────
 
-/** Format a JS Date as "01 Mar 2026" — used for date-matching throughout */
+/**
+ * Format a JS Date as "01 May 2026" — must match EXACTLY what GAS
+ * Utilities.formatDate(val, tz, "dd MMM yyyy") produces.
+ * Uses MONTHS_SHORT (declared above) — no locale dependency.
+ */
 function fmt(d) {
-  return d.toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'});
+  var day = String(d.getDate()).padStart(2, '0');
+  var mon = MONTHS_SHORT[d.getMonth()];
+  var yr  = d.getFullYear();
+  return day + ' ' + mon + ' ' + yr;
 }
 /** Format a JS Date as "March 2026" — used in month headings */
 function fmtMonth(d) {
@@ -1180,11 +1196,10 @@ function monthsAgo(d, n) {
 
 /** Check if a formatted date string (e.g. "05 Mar 2026") falls in a given year/month */
 function dateInMonth(dateStr, year, month) {
-  // months in Date are 0-indexed; month param here is 1-indexed
-  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  var parts = dateStr.split(' ');
+  if (!dateStr) return false;
+  var parts = dateStr.trim().split(/\s+/);
   if (parts.length < 3) return false;
-  var m = months.indexOf(parts[1]) + 1; // 1-indexed
+  var m = MONTHS_SHORT.indexOf(parts[1]) + 1; // 1-indexed
   var y = parseInt(parts[2], 10);
   return m === month && y === year;
 }
@@ -1578,64 +1593,49 @@ var GAS_CODE = [
 ' * This correctly handles both time-only cells (epoch date + time) and',
 ' * proper date cells (real date + midnight time).',
 ' */',
-'function readFlatSheet(sheet, tabName) {',
-'  var rows = sheet.getDataRange().getValues();',
-'  if (rows.length < 2) return { data: [], tab: tabName, count: 0 };',
-'',
-'  var tz      = Session.getScriptTimeZone();',
-'  var headers = rows[0].map(function(h) { return String(h || "").trim(); });',
-'  var data    = [];',
-'',
-'  for (var i = 1; i < rows.length; i++) {',
-'    var row     = rows[i];',
-'    // Skip completely empty rows',
-'    var hasData = row.some(function(c) { return c !== "" && c !== null && c !== undefined; });',
-'    if (!hasData) continue;',
-'',
-'    var obj = {};',
-'    for (var k = 0; k < headers.length; k++) {',
-'      if (!headers[k]) continue;',
-'      var val = row[k];',
-'',
-'      if (val instanceof Date) {',
-'        // ── DEFINITIVE TIME FIX ───────────────────────────────────────────────────',
-'        // Detect time-only cells by checking the year of the Date object.',
-'        // In Google Sheets, time-only values use the spreadsheet epoch:',
-'        //   30 December 1899 (year = 1899 or 1900 depending on GAS version).',
-'        // Regular date cells have year >= 1900 (usually 2000s).',
-'        //',
-'        // We do NOT rely on the column header name ("Time") because:',
-'        //   - Column names may vary (e.g. "Entry Time", "TIME", etc.)',
-'        //   - It is fragile and was the cause of previous bugs.',
-'        //',
-'        // Instead: year <= 1900 => time-only cell => format as "HH:mm"',
-'        //           year >  1900 => real date cell  => format as "dd MMM yyyy"',
-'        //',
-'        // We use getHours()/getMinutes() directly on the GAS Date object',
-'        // rather than Utilities.formatDate() to avoid timezone conversion',
-'        // issues. GAS Date methods return values in the script timezone.',
-'        // ────────────────────────────────────────────────────────────────────────',
-'        if (val.getFullYear() <= 1900) {',
-'          // Time-only cell (spreadsheet epoch date)',
-'          var hh = String(val.getHours()).padStart ? String(val.getHours()) : ("0"+val.getHours()).slice(-2);',
-'          var mm = val.getMinutes() < 10 ? "0"+val.getMinutes() : ""+val.getMinutes();',
-'          if (hh.length < 2) hh = "0" + hh;',
-'          val = hh + ":" + mm;',
-'        } else {',
-'          // Real date cell',
-'          val = Utilities.formatDate(val, tz, "dd MMM yyyy");',
-'        }',
-'        // ────────────────────────────────────────────────────────────────────────',
-'      }',
-'',
-'      obj[headers[k]] = (val === null || val === undefined) ? "" : val;',
-'    }',
-'    data.push(obj);',
-'  }',
-'',
-'  return { data: data, tab: tabName, count: data.length };',
-'}',
-'',
+ 'function readFlatSheet(sheet, tabName) {',
+ '  var rows = sheet.getDataRange().getValues();',
+ '  if (rows.length < 2) return { data: [], tab: tabName, count: 0 };',
+ '',
+ '  var tz      = Session.getScriptTimeZone();',
+ '  var headers = rows[0].map(function(h) { return String(h || "").trim(); });',
+ '  var data    = [];',
+ '',
+ '  for (var i = 1; i < rows.length; i++) {',
+ '    var row     = rows[i];',
+ '    var hasData = row.some(function(c) { return c !== "" && c !== null && c !== undefined; });',
+ '    if (!hasData) continue;',
+ '',
+ '    var obj = {};',
+ '    for (var k = 0; k < headers.length; k++) {',
+ '      if (!headers[k]) continue;',
+ '      var val = row[k];',
+ '',
+ '      if (val instanceof Date) {',
+ '        if (val.getFullYear() <= 1900) {',
+ '          // Time-only cell (spreadsheet epoch 1899/1900)',
+ '          var hh = val.getHours();',
+ '          var mm = val.getMinutes();',
+ '          val = (hh < 10 ? "0" : "") + hh + ":" + (mm < 10 ? "0" : "") + mm;',
+ '        } else {',
+ '          // Real date cell',
+ '          val = Utilities.formatDate(val, tz, "dd MMM yyyy");',
+ '        }',
+ '      }',
+ '',
+ '      obj[headers[k]] = (val === null || val === undefined) ? "" : val;',
+ '    }',
+ '    data.push(obj);',
+ '  }',
+ '',
+ '  // Include actual headers in the response — helps debug column name mismatches',
+ '  return {',
+ '    data:    data,',
+ '    tab:     tabName,',
+ '    count:   data.length,',
+ '    headers: headers.filter(function(h) { return h; })',
+ '  };',
+ '}',
 '/**',
 ' * Read the Production sheet which has a special structure:',
 ' *   Row 1 : date headers (sparse — one Date per Prod/Disp column pair)',
@@ -1898,30 +1898,57 @@ var GAS_CODE = [
 // as a belt-and-suspenders defence even though GAS now sends correct strings.
 
 function normalIn(r) {
+  // Build a lowercase key map so we can match headers case-insensitively
+  var lc = {};
+  Object.keys(r).forEach(function(k) { lc[k.toLowerCase().trim()] = r[k]; });
+
+  // Helper: find value by trying multiple possible header names
+  function pick() {
+    for (var i = 0; i < arguments.length; i++) {
+      var v = r[arguments[i]];
+      if (v !== undefined && v !== null && v !== '') return v;
+      // Also try lowercase map
+      v = lc[arguments[i].toLowerCase()];
+      if (v !== undefined && v !== null && v !== '') return v;
+    }
+    return '';
+  }
+
   return {
-    date:     String(r['Date']     || r.date     || ''),
-    time:     cleanTime(r['Time']  || r.time     || ''),
-    supplier: String(r['Supplier Name'] || r.supplier || ''),
-    bill:     String(r['Bill/Challan No.'] || r['Bill/Challan No'] || r.bill || ''),
-    material: String(r['Material Name']   || r.material  || ''),
-    vehicle:  String(r['Vehicle No.']     || r['Vehicle No'] || r.vehicle || ''),
-    qty:      parseFloat(r['Quantity'] || r['Qty'] || r.qty) || 0,
+    date:     String(pick('Date','DATE','date','Entry Date','Inward Date') || ''),
+    time:     cleanTime(String(pick('Time','TIME','time','Entry Time') || '')),
+    supplier: String(pick('Supplier Name','Supplier','SUPPLIER','supplier','Party Name','Party') || ''),
+    bill:     String(pick('Bill/Challan No.','Bill/Challan No','Bill No','Bill No.','Challan No','Challan No.','Bill','bill') || ''),
+    material: String(pick('Material Name','Material','MATERIAL','material','Product','Item','Item Name') || ''),
+    vehicle:  String(pick('Vehicle No.','Vehicle No','Vehicle','vehicle','Truck No','Truck No.') || ''),
+    qty:      parseFloat(pick('Quantity','Qty','QTY','qty','Quantity (Units)','Units') || 0) || 0,
   };
 }
 
 function normalDis(r) {
+  var lc = {};
+  Object.keys(r).forEach(function(k) { lc[k.toLowerCase().trim()] = r[k]; });
+  function pick() {
+    for (var i = 0; i < arguments.length; i++) {
+      var v = r[arguments[i]];
+      if (v !== undefined && v !== null && v !== '') return v;
+      v = lc[arguments[i].toLowerCase()];
+      if (v !== undefined && v !== null && v !== '') return v;
+    }
+    return '';
+  }
   return {
-    date:      String(r['Date']     || r.date      || ''),
-    time:      cleanTime(r['Time']  || r.time      || ''),
-    enteredBy: String(r['Entered By']    || r.enteredBy || ''),
-    party:     String(r['Party Name']    || r.party     || ''),
-    bill:      String(r['Bill/Challan Number'] || r['Bill/Challan No.'] || r.bill || ''),
-    vehicle:   String(r['Vehicle No.']   || r['Vehicle No'] || r.vehicle || ''),
-    machine:   String(r['Machine']       || r.machine    || ''),
-    product:   String(r['Product']       || r.product    || ''),
-    thickness: String(r['Thickness']     || r.thickness  || ''),
-    color:     String(r['Color'] || r['Colour'] || r.color || ''),
-    qty:       parseFloat(r['Material Quantity'] || r['Quantity'] || r.qty) || 0,
+    date:      String(pick('Date','DATE','date','Entry Date','Dispatch Date') || ''),
+    time:      cleanTime(String(pick('Time','TIME','time','Entry Time') || '')),
+    enteredBy: String(pick('Entered By','Entered by','EnteredBy','entered by','By','User') || ''),
+    party:     String(pick('Party Name','Party','PARTY','party','Customer','Customer Name') || ''),
+    bill:      String(pick('Bill/Challan Number','Bill/Challan No.','Bill/Challan No','Bill No','Bill No.','Challan No','Bill','bill') || ''),
+    vehicle:   String(pick('Vehicle No.','Vehicle No','Vehicle','vehicle','Truck No') || ''),
+    machine:   String(pick('Machine','MACHINE','machine','Machine Name') || ''),
+    product:   String(pick('Product','PRODUCT','product','Product Name','Item') || ''),
+    thickness: String(pick('Thickness','THICKNESS','thickness') || ''),
+    color:     String(pick('Color','Colour','COLOR','COLOUR','color','colour') || ''),
+    qty:       parseFloat(pick('Material Quantity','Quantity','Qty','QTY','qty','Units') || 0) || 0,
   };
 }
 
@@ -2026,9 +2053,17 @@ async function loadData() {
   if (res[0].status === 'fulfilled') {
     S.inward       = res[0].value.map(normalIn);
     S.inwardLoaded = true;
+    // Log actual headers for debugging column name mismatches
+    if (res[0].value.length > 0) {
+      console.info('[Helix] Inward headers:', Object.keys(res[0].value[0]));
+      console.info('[Helix] Inward first row sample:', JSON.stringify(res[0].value[0]).substring(0,200));
+    } else {
+      console.warn('[Helix] Inward: GAS returned 0 rows. Tab name correct? Sheet has data?');
+    }
   } else {
     errs.inward    = res[0].reason ? res[0].reason.message : 'Could not load Inward data';
     S.inwardLoaded = false;
+    console.error('[Helix] Inward error:', errs.inward);
   }
 
   if (res[1].status === 'fulfilled') {
