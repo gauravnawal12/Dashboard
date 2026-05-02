@@ -2051,27 +2051,50 @@ async function loadData() {
   ]);
 
   if (res[0].status === 'fulfilled') {
-    S.inward       = res[0].value.map(normalIn);
+    var rawIn = res[0].value;
+    S.inward       = rawIn.map(normalIn);
     S.inwardLoaded = true;
-    // Log actual headers for debugging column name mismatches
-    if (res[0].value.length > 0) {
-      console.info('[Helix] Inward headers:', Object.keys(res[0].value[0]));
-      console.info('[Helix] Inward first row sample:', JSON.stringify(res[0].value[0]).substring(0,200));
+    console.group('[Helix] INWARD DEBUG');
+    console.log('Raw rows from GAS:', rawIn.length);
+    if (rawIn.length > 0) {
+      console.log('GAS headers:', Object.keys(rawIn[0]));
+      console.log('First raw row:', JSON.stringify(rawIn[0]));
+      console.log('First normalised row:', JSON.stringify(S.inward[0]));
+      console.log('fmt(today):', fmt(today), '| S.diDate:', S.diDate, '| isoToFmt(S.diDate):', isoToFmt(S.diDate));
+      // Show date values from actual data
+      var dates = S.inward.slice(0,5).map(function(r){return r.date;});
+      console.log('First 5 dates in normalised data:', dates);
+      console.log('Expected date format:', fmt(today));
     } else {
-      console.warn('[Helix] Inward: GAS returned 0 rows. Tab name correct? Sheet has data?');
+      console.warn('GAS returned 0 rows for Inward — check tab name "' + S.cfg.inwardTab + '" and sheetId');
     }
+    console.groupEnd();
   } else {
     errs.inward    = res[0].reason ? res[0].reason.message : 'Could not load Inward data';
     S.inwardLoaded = false;
-    console.error('[Helix] Inward error:', errs.inward);
+    console.error('[Helix] Inward FAILED:', errs.inward);
   }
 
   if (res[1].status === 'fulfilled') {
-    S.dispatch       = res[1].value.map(normalDis);
+    var rawDis = res[1].value;
+    S.dispatch       = rawDis.map(normalDis);
     S.dispatchLoaded = true;
+    console.group('[Helix] DISPATCH DEBUG');
+    console.log('Raw rows from GAS:', rawDis.length);
+    if (rawDis.length > 0) {
+      console.log('GAS headers:', Object.keys(rawDis[0]));
+      console.log('First raw row:', JSON.stringify(rawDis[0]));
+      console.log('First normalised row:', JSON.stringify(S.dispatch[0]));
+      var ddates = S.dispatch.slice(0,5).map(function(r){return r.date;});
+      console.log('First 5 dates in normalised data:', ddates);
+    } else {
+      console.warn('GAS returned 0 rows for Dispatch — check tab name "' + S.cfg.dispatchTab + '" and sheetId');
+    }
+    console.groupEnd();
   } else {
     errs.dispatch    = res[1].reason ? res[1].reason.message : 'Could not load Dispatch data';
     S.dispatchLoaded = false;
+    console.error('[Helix] Dispatch FAILED:', errs.dispatch);
   }
 
   if (res[2].status === 'fulfilled') {
@@ -2422,6 +2445,25 @@ function renderDailyIn() {
     return r.date === selFmt
       && (!q || (r.supplier + r.material + r.bill).toLowerCase().includes(q));
   });
+
+  // ── DEBUG PANEL — shows why data may not appear ──
+  // Remove this block once data is confirmed working
+  if (S.inward.length > 0 && rows.length === 0 && !q) {
+    var sampleDates = [];
+    S.inward.slice(0, 5).forEach(function(r) {
+      if (sampleDates.indexOf(r.date) === -1) sampleDates.push(r.date);
+    });
+    h += '<div style="margin:12px 18px;padding:10px 14px;background:#FEF5E4;border:1px solid #FDECC0;'
+      + 'border-radius:8px;font-size:11px;color:#7A5200;line-height:1.7">'
+      + '<strong>🔍 Debug — No data for selected date</strong><br>'
+      + 'Loaded <strong>' + S.inward.length + ' rows</strong> from GAS.<br>'
+      + 'Looking for date: <code style="background:#fff;padding:1px 5px;border-radius:3px">' + esc(selFmt) + '</code><br>'
+      + 'Dates found in data: <code style="background:#fff;padding:1px 5px;border-radius:3px">'
+      + esc(sampleDates.join(' | ')) + '</code><br>'
+      + '<em>If dates look different from the selected date above, that is the mismatch.</em>'
+      + '</div>';
+  }
+  // ── END DEBUG PANEL ──
 
   var totalQty = rows.reduce(function(s,r){return s+r.qty;},0);
   var sups     = {}; rows.forEach(function(r){sups[r.supplier]=1;});
