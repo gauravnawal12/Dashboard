@@ -1947,30 +1947,79 @@ var GAS_CODE = [
 // consistent internal format. cleanTime() is applied to all time fields
 // as a belt-and-suspenders defence even though GAS now sends correct strings.
 
+/**
+ * Fix dates that GAS has swapped due to DD/MM/YYYY vs MM/DD/YYYY ambiguity.
+ *
+ * Sheet stores dates as DD/MM/YYYY (e.g. 02/05/2026 = 2nd May).
+ * GAS interprets as MM/DD/YYYY → sends "05 Feb 2026" instead of "02 May 2026".
+ *
+ * Strategy: the Inward sheet has a "Month" column (e.g. "May 2026") that
+ * tells us the correct month. If the month in the Date field doesn't match
+ * the Month column, the day and month were swapped — so we swap them back.
+ *
+ * For Dispatch (no Month column): we detect the swap by checking if the
+ * "month" part of the date string (e.g. "Jan" = 1) is ≤ 12 and could
+ * plausibly be a day (DD), then reconstruct using the day value as month.
+ * Since all dates are in 2026, if the month abbreviation decodes to a
+ * number ≤ 12 and the day value is also ≤ 12, we assume swap occurred.
+ */
+function fixDateSwap(dateStr, correctMonAbbr) {
+  // dateStr format: "DD MMM YYYY" e.g. "05 Feb 2026" (wrong) or "02 May 2026" (right)
+  if (!dateStr) return '';
+  var p = dateStr.trim().split(/\s+/);
+  if (p.length !== 3) return dateStr;
+  var gasDay = parseInt(p[0], 10);  // GAS put this as day — may actually be month
+  var gasMon = p[1];                // GAS put this as month — may actually be day
+  var year   = p[2];
+
+  if (correctMonAbbr && gasMon !== correctMonAbbr) {
+    // Swap: real day = index of gasMon in MONTHS_SHORT + 1
+    var realDay = MONTHS_SHORT.indexOf(gasMon) + 1;
+    if (realDay > 0) {
+      return (realDay < 10 ? '0' : '') + realDay + ' ' + correctMonAbbr + ' ' + year;
+    }
+  }
+  return dateStr;
+}
+
+function extractMonAbbr(monthHint) {
+  // monthHint e.g. "May 2026" or "01 May 2026" or "May" → return "May"
+  if (!monthHint) return null;
+  var parts = String(monthHint).trim().split(/\s+/);
+  for (var i = 0; i < parts.length; i++) {
+    if (MONTHS_SHORT.indexOf(parts[i]) !== -1) return parts[i];
+    // Full month name e.g. "January" → "Jan"
+    var full = parts[i];
+    for (var j = 0; j < MONTHS_SHORT.length; j++) {
+      if (full.toLowerCase().indexOf(MONTHS_SHORT[j].toLowerCase()) === 0) return MONTHS_SHORT[j];
+    }
+  }
+  return null;
+}
+
 function normalIn(r) {
-  // Build a lowercase key map so we can match headers case-insensitively
   var lc = {};
   Object.keys(r).forEach(function(k) { lc[k.toLowerCase().trim()] = r[k]; });
-
-  // Helper: find value by trying multiple possible header names
   function pick() {
     for (var i = 0; i < arguments.length; i++) {
-      var v = r[arguments[i]];
-      if (v !== undefined && v !== null && v !== '') return v;
-      // Also try lowercase map
-      v = lc[arguments[i].toLowerCase()];
-      if (v !== undefined && v !== null && v !== '') return v;
+      var v = r[arguments[i]]; if (v !== undefined && v !== null && v !== '') return v;
+      v = lc[String(arguments[i]).toLowerCase()]; if (v !== undefined && v !== null && v !== '') return v;
     }
     return '';
   }
 
+  var rawDate   = String(pick('Date','DATE','date','Entry Date','Inward Date') || '');
+  var monthHint = String(pick('Month','MONTH','month') || '');
+  var monAbbr   = extractMonAbbr(monthHint);
+  var fixedDate = fixDateSwap(rawDate, monAbbr);
+
   return {
-    date:     String(pick('Date','DATE','date','Entry Date','Inward Date') || ''),
+    date:     fixedDate || rawDate,
     time:     cleanTime(String(pick('Time','TIME','time','Entry Time') || '')),
-    supplier: String(pick('Supplier Name','Supplier','SUPPLIER','supplier','Party Name','Party') || ''),
+    supplier: String(pick('Supplier Name','Supplier','SUPPLIER','supplier') || ''),
     bill:     String(pick('Bill/Challan No.','Bill/Challan No','Bill No','Bill No.','Challan No','Challan No.','Bill','bill') || ''),
-    material: String(pick('Material Name','Material','MATERIAL','material','Product','Item','Item Name') || ''),
-    vehicle:  String(pick('Vehicle No.','Vehicle No','Vehicle','vehicle','Truck No','Truck No.') || ''),
+    material: String(pick('Material Name','Material','MATERIAL','material','Product','Item') || ''),
+    vehicle:  String(pick('Vehicle No.','Vehicle No','Vehicle','vehicle','Truck No') || ''),
     qty:      parseFloat(pick('Quantity','Qty','QTY','qty','Quantity (Units)','Units') || 0) || 0,
   };
 }
@@ -1980,15 +2029,41 @@ function normalDis(r) {
   Object.keys(r).forEach(function(k) { lc[k.toLowerCase().trim()] = r[k]; });
   function pick() {
     for (var i = 0; i < arguments.length; i++) {
-      var v = r[arguments[i]];
-      if (v !== undefined && v !== null && v !== '') return v;
-      v = lc[arguments[i].toLowerCase()];
-      if (v !== undefined && v !== null && v !== '') return v;
+      var v = r[arguments[i]]; if (v !== undefined && v !== null && v !== '') return v;
+      v = lc[String(arguments[i]).toLowerCase()]; if (v !== undefined && v !== null && v !== '') return v;
     }
     return '';
   }
+
+  var rawDate   = String(pick('Date','DATE','date','Entry Date','Dispatch Date') || '');
+  var monthHint = String(pick('Month','MONTH','month') || '');
+  var monAbbr   = extractMonAbbr(monthHint);
+  // For dispatch, if no Month column, try to detect swap:
+  // If the date "DD MMM YYYY" has MMM that decodes to a number ≤ 12
+  // and DD is also ≤ 12, both could be day or month — use the year context.
+  // We detect: if gasMon (as a number) < gasDay, likely swapped.
+  if (!monAbbr) {
+    var dp = rawDate.trim().split(/\s+/);
+    if (dp.length === 3) {
+      var gasD  = parseInt(dp[0], 10);
+      var gasM  = MONTHS_SHORT.indexOf(dp[1]) + 1; // 1-12
+      // If gasD (what GAS calls day) > 12, it can't be a month → not swapped
+      // If gasM (what GAS calls month index) ≤ 12 and gasD ≤ 12 → ambiguous
+      // Heuristic: if gasM < gasD, the values were likely swapped
+      // (real day = gasM number, real month = MONTHS_SHORT[gasD-1])
+      if (gasM > 0 && gasD <= 12 && gasM < gasD) {
+        var realMon = MONTHS_SHORT[gasD - 1];
+        if (realMon) {
+          monAbbr = realMon;
+          rawDate = fixDateSwap(rawDate, monAbbr);
+        }
+      }
+    }
+  }
+  var fixedDate = fixDateSwap(rawDate, monAbbr);
+
   return {
-    date:      String(pick('Date','DATE','date','Entry Date','Dispatch Date') || ''),
+    date:      fixedDate || rawDate,
     time:      cleanTime(String(pick('Time','TIME','time','Entry Time') || '')),
     enteredBy: String(pick('Entered By','Entered by','EnteredBy','entered by','By','User') || ''),
     party:     String(pick('Party Name','Party','PARTY','party','Customer','Customer Name') || ''),
