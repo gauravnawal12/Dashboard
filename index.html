@@ -2571,25 +2571,6 @@ function renderDailyIn() {
       && (!q || (r.supplier + r.material + r.bill).toLowerCase().includes(q));
   });
 
-  // ── DEBUG PANEL — shows why data may not appear ──
-  // Remove this block once data is confirmed working
-  if (S.inward.length > 0 && rows.length === 0 && !q) {
-    var sampleDates = [];
-    S.inward.slice(0, 5).forEach(function(r) {
-      if (sampleDates.indexOf(r.date) === -1) sampleDates.push(r.date);
-    });
-    h += '<div style="margin:12px 18px;padding:10px 14px;background:#FEF5E4;border:1px solid #FDECC0;'
-      + 'border-radius:8px;font-size:11px;color:#7A5200;line-height:1.7">'
-      + '<strong>🔍 Debug — No data for selected date</strong><br>'
-      + 'Loaded <strong>' + S.inward.length + ' rows</strong> from GAS.<br>'
-      + 'Looking for date: <code style="background:#fff;padding:1px 5px;border-radius:3px">' + esc(selFmt) + '</code><br>'
-      + 'Dates found in data: <code style="background:#fff;padding:1px 5px;border-radius:3px">'
-      + esc(sampleDates.join(' | ')) + '</code><br>'
-      + '<em>If dates look different from the selected date above, that is the mismatch.</em>'
-      + '</div>';
-  }
-  // ── END DEBUG PANEL ──
-
   var totalQty = rows.reduce(function(s,r){return s+r.qty;},0);
   var sups     = {}; rows.forEach(function(r){sups[r.supplier]=1;});
 
@@ -4118,8 +4099,8 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// Auto-refresh live data every 5 minutes
-setInterval(function(){ if (S.isLive) loadData(); }, 5 * 60 * 1000);
+// Auto-refresh live data every 10 minutes
+setInterval(function(){ if (S.isLive) loadData(); }, 10 * 60 * 1000);
 
 // Show a loading state immediately while config.json is being fetched
 // bootstrapConfig() will call updateHeader() + render() once config is ready
