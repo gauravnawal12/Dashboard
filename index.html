@@ -1948,88 +1948,13 @@ var GAS_CODE = [
 // as a belt-and-suspenders defence even though GAS now sends correct strings.
 
 /**
- * CONFIRMED DATE PATTERN (from GAS debug data):
- *
- * Sheet stores dates as DD/MM/YYYY text (e.g. 01/05/2026 = 1st May 2026).
- * GAS interprets as MM/DD/YYYY → swaps day and month:
- *   01/05/2026 → month=01(Jan), day=05 → sends "05 Jan 2026"  ✗
- *   02/05/2026 → month=02(Feb), day=05 → sends "05 Feb 2026"  ✗
- *   05/05/2026 → month=05(May), day=05 → sends "05 May 2026"  ✓ (coincidentally correct)
- *   06/05/2026 → month=06(Jun), day=05 → sends "05 Jun 2026"  ✗
- *
- * Fix rule:
- *   - If a trusted Month column hint is available (Inward): use it to identify
- *     the correct month, then reconstruct the date.
- *   - If no hint (Dispatch): check if the GAS "day" value equals the numeric
- *     value of the GAS "month" abbreviation. If they match (e.g. "05 May" →
- *     day=5, May=5), the date is already correct — leave it. If they don't
- *     match (e.g. "05 Jan" → day=5, Jan=1, 5≠1), swap them.
- *
- * This correctly handles all confirmed cases:
- *   "05 Jan 2026" → 5≠1 → swap → "01 May 2026" ✓
- *   "05 Feb 2026" → 5≠2 → swap → "02 May 2026" ✓
- *   "05 May 2026" → 5=5 → no swap → "05 May 2026" ✓
- *   "05 Jun 2026" → 5≠6 → swap → "06 May 2026" ✓
- *   "15 Mar 2026" → day=15>12, can't be month → no swap → "15 Mar 2026" ✓
+ * The GAS script now sends dates correctly formatted as "DD MMM YYYY"
+ * (e.g. "07 May 2026") using getDisplayValues() + parseDMY().
+ * No date swapping is needed. This function is kept as a pass-through
+ * stub so existing call sites don't break.
  */
 function fixDateSwap(dateStr, correctMonAbbr) {
-  if (!dateStr) return '';
-  dateStr = String(dateStr).trim();
-
-  // ── Handle raw DD/MM/YYYY strings (days 13-31) ───────────────────
-  // When DD > 12, GAS can't interpret it as a month number, so it sends
-  // the raw string "13/05/2026" instead of a formatted date like "05 Jun 2026".
-  // Parse these directly: DD=first, MM=middle, YYYY=last.
-  var slashMatch = dateStr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-  if (slashMatch) {
-    var dd = parseInt(slashMatch[1], 10);
-    var mm = parseInt(slashMatch[2], 10);
-    var yy = slashMatch[3];
-    // Determine which is day and which is month
-    // If correctMonAbbr is available, use its month number
-    if (correctMonAbbr) {
-      var hintMon = MONTHS_SHORT.indexOf(correctMonAbbr) + 1;
-      // If mm matches the hint month, format is DD/MM/YYYY → dd is real day
-      if (mm === hintMon) {
-        return (dd < 10 ? '0' : '') + dd + ' ' + correctMonAbbr + ' ' + yy;
-      }
-      // If dd matches the hint month, format is MM/DD/YYYY → mm is real day
-      if (dd === hintMon) {
-        return (mm < 10 ? '0' : '') + mm + ' ' + correctMonAbbr + ' ' + yy;
-      }
-    }
-    // No hint: assume DD/MM/YYYY (your sheet format)
-    if (mm >= 1 && mm <= 12) {
-      var mon = MONTHS_SHORT[mm - 1];
-      return (dd < 10 ? '0' : '') + dd + ' ' + mon + ' ' + yy;
-    }
-    return dateStr;
-  }
-
-  // ── Handle "DD MMM YYYY" strings (days 1-12, GAS-formatted) ──────
-  var p = dateStr.split(/\s+/);
-  if (p.length !== 3) return dateStr;
-
-  var gasDay    = parseInt(p[0], 10);
-  var gasMon    = p[1];
-  var year      = p[2];
-  var gasMonNum = MONTHS_SHORT.indexOf(gasMon) + 1;
-  if (gasMonNum === 0) return dateStr;
-
-  // Case 1: trusted Month column (Inward)
-  if (correctMonAbbr) {
-    if (gasMon === correctMonAbbr) return dateStr;
-    var realDay = gasMonNum;
-    return (realDay < 10 ? '0' : '') + realDay + ' ' + correctMonAbbr + ' ' + year;
-  }
-
-  // Case 2: no hint (Dispatch) — swap when day and month are inconsistent
-  if (gasDay > 12) return dateStr;
-  if (gasDay === gasMonNum) return dateStr; // self-consistent, already correct
-  var realMon    = MONTHS_SHORT[gasDay - 1];
-  var realDayNum = gasMonNum;
-  if (!realMon) return dateStr;
-  return (realDayNum < 10 ? '0' : '') + realDayNum + ' ' + realMon + ' ' + year;
+  return dateStr ? String(dateStr).trim() : '';
 }
 
 function extractMonAbbr(monthHint) {
@@ -2057,14 +1982,8 @@ function normalIn(r) {
     }
     return '';
   }
-
-  var rawDate   = String(pick('Date','DATE','date','Entry Date','Inward Date') || '');
-  var monthHint = String(pick('Month','MONTH','month') || '');
-  var monAbbr   = extractMonAbbr(monthHint);
-  var fixedDate = fixDateSwap(rawDate, monAbbr);
-
   return {
-    date:     fixedDate || rawDate,
+    date:     String(pick('Date','DATE','date','Entry Date','Inward Date') || ''),
     time:     cleanTime(String(pick('Time','TIME','time','Entry Time') || '')),
     supplier: String(pick('Supplier Name','Supplier','SUPPLIER','supplier') || ''),
     bill:     String(pick('Bill/Challan No.','Bill/Challan No','Bill No','Bill No.','Challan No','Challan No.','Bill','bill') || ''),
@@ -2084,14 +2003,8 @@ function normalDis(r) {
     }
     return '';
   }
-
-  var rawDate   = String(pick('Date','DATE','date','Entry Date','Dispatch Date') || '');
-  var monthHint = String(pick('Month','MONTH','month') || '');
-  var monAbbr   = extractMonAbbr(monthHint);
-  var fixedDate = fixDateSwap(rawDate, monAbbr);
-
   return {
-    date:      fixedDate || rawDate,
+    date:      String(pick('Date','DATE','date','Entry Date','Dispatch Date') || ''),
     time:      cleanTime(String(pick('Time','TIME','time','Entry Time') || '')),
     enteredBy: String(pick('Entered By','Entered by','EnteredBy','entered by','By','User') || ''),
     party:     String(pick('Party Name','Party','PARTY','party','Customer','Customer Name') || ''),
@@ -2236,12 +2149,16 @@ async function loadData() {
     console.log('Raw rows from GAS:', rawDis.length);
     if (rawDis.length > 0) {
       console.log('GAS headers:', Object.keys(rawDis[0]));
-      console.log('First raw row:', JSON.stringify(rawDis[0]));
-      console.log('First normalised row:', JSON.stringify(S.dispatch[0]));
+      console.log('First raw row Date:', rawDis[0]['Date']);
+      console.log('First normalised date:', S.dispatch[0].date);
       var ddates = S.dispatch.slice(0,5).map(function(r){return r.date;});
-      console.log('First 5 dates in normalised data:', ddates);
+      console.log('First 5 fixed dates:', ddates);
+      console.log('Looking for today:', fmt(today), '| yesterday:', fmt(yesterday));
+      var todayRows = S.dispatch.filter(function(r){return r.date===fmt(today);});
+      var yestRows  = S.dispatch.filter(function(r){return r.date===fmt(yesterday);});
+      console.log('Rows matching today:', todayRows.length, '| yesterday:', yestRows.length);
     } else {
-      console.warn('GAS returned 0 rows for Dispatch — check tab name "' + S.cfg.dispatchTab + '" and sheetId');
+      console.warn('GAS returned 0 rows for Dispatch');
     }
     console.groupEnd();
   } else {
