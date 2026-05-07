@@ -967,6 +967,7 @@ details .inner {
     <button class="top-nav-btn" data-tab="pr" onclick="switchTab(this)"><span class="nb-icon">⚙</span>Production</button>
     <button class="top-nav-btn" data-tab="st" onclick="switchTab(this)"><span class="nb-icon">▦</span>Stock</button>
     <button class="top-nav-btn" data-tab="au" onclick="switchTab(this)"><span class="nb-icon">✎</span>AU Entry</button>
+    <button class="top-nav-btn" data-tab="dbg" onclick="switchTab(this)"><span class="nb-icon">🔍</span>Debug</button>
   </nav>
 </div>
 
@@ -983,6 +984,7 @@ details .inner {
   <button class="bot-btn" data-tab="pr" onclick="switchTab(this)"><span class="bi">⚙</span>Prod</button>
   <button class="bot-btn" data-tab="st" onclick="switchTab(this)"><span class="bi">▦</span>Stock</button>
   <button class="bot-btn" data-tab="au" onclick="switchTab(this)"><span class="bi">✎</span>AU</button>
+  <button class="bot-btn" data-tab="dbg" onclick="switchTab(this)"><span class="bi">🔍</span>Debug</button>
 </nav>
 
 <!-- ═══ CONNECT MODAL ════════════════════════════════ -->
@@ -1451,6 +1453,10 @@ var S = {
 
   // ── AU Entry state ──
   auHistory: [],            // Last few submitted entries shown below form
+
+  // ── Debug storage (raw GAS responses for Debug tab) ──
+  _debugRawIn:  null,
+  _debugRawDis: null,
 };
 
 
@@ -2117,54 +2123,25 @@ async function loadData() {
   ]);
 
   if (res[0].status === 'fulfilled') {
-    var rawIn = res[0].value;
+    var rawIn      = res[0].value;
     S.inward       = rawIn.map(normalIn);
     S.inwardLoaded = true;
-    console.group('[Helix] INWARD DEBUG');
-    console.log('Raw rows from GAS:', rawIn.length);
-    if (rawIn.length > 0) {
-      console.log('GAS headers:', Object.keys(rawIn[0]));
-      console.log('First raw row:', JSON.stringify(rawIn[0]));
-      console.log('First normalised row:', JSON.stringify(S.inward[0]));
-      console.log('fmt(today):', fmt(today), '| S.diDate:', S.diDate, '| isoToFmt(S.diDate):', isoToFmt(S.diDate));
-      // Show date values from actual data
-      var dates = S.inward.slice(0,5).map(function(r){return r.date;});
-      console.log('First 5 dates in normalised data:', dates);
-      console.log('Expected date format:', fmt(today));
-    } else {
-      console.warn('GAS returned 0 rows for Inward — check tab name "' + S.cfg.inwardTab + '" and sheetId');
-    }
-    console.groupEnd();
+    S._debugRawIn  = rawIn;   // store raw for debug panel
   } else {
     errs.inward    = res[0].reason ? res[0].reason.message : 'Could not load Inward data';
     S.inwardLoaded = false;
-    console.error('[Helix] Inward FAILED:', errs.inward);
+    S._debugRawIn  = null;
   }
 
   if (res[1].status === 'fulfilled') {
-    var rawDis = res[1].value;
+    var rawDis       = res[1].value;
     S.dispatch       = rawDis.map(normalDis);
     S.dispatchLoaded = true;
-    console.group('[Helix] DISPATCH DEBUG');
-    console.log('Raw rows from GAS:', rawDis.length);
-    if (rawDis.length > 0) {
-      console.log('GAS headers:', Object.keys(rawDis[0]));
-      console.log('First raw row Date:', rawDis[0]['Date']);
-      console.log('First normalised date:', S.dispatch[0].date);
-      var ddates = S.dispatch.slice(0,5).map(function(r){return r.date;});
-      console.log('First 5 fixed dates:', ddates);
-      console.log('Looking for today:', fmt(today), '| yesterday:', fmt(yesterday));
-      var todayRows = S.dispatch.filter(function(r){return r.date===fmt(today);});
-      var yestRows  = S.dispatch.filter(function(r){return r.date===fmt(yesterday);});
-      console.log('Rows matching today:', todayRows.length, '| yesterday:', yestRows.length);
-    } else {
-      console.warn('GAS returned 0 rows for Dispatch');
-    }
-    console.groupEnd();
+    S._debugRawDis   = rawDis;  // store raw for debug panel
   } else {
     errs.dispatch    = res[1].reason ? res[1].reason.message : 'Could not load Dispatch data';
     S.dispatchLoaded = false;
-    console.error('[Helix] Dispatch FAILED:', errs.dispatch);
+    S._debugRawDis   = null;
   }
 
   if (res[2].status === 'fulfilled') {
@@ -2306,7 +2283,8 @@ function render() {
   else if (S.tab==='md') h+=renderMonthlyDis();
   else if (S.tab==='pr') h+=renderProd();
   else if (S.tab==='st') h+=renderStock();
-  else if (S.tab==='au') h+=renderAuEntry();
+  else if (S.tab==='au')  h+=renderAuEntry();
+  else if (S.tab==='dbg') h+=renderDebug();
 
   pg.innerHTML=h;
   drawCharts();
@@ -3276,6 +3254,119 @@ function kpi(label, val, unit, ac, icon) {
   return '<div class="kpi" data-icon="'+(icon||'')+'"><div class="kpi-label">'+label+'</div>'
     +'<div class="kpi-value '+cls+'">'+display+'</div></div>';
 }
+// ── DEBUG TAB ─────────────────────────────────────────────────────────
+function renderDebug() {
+  var h = '<div class="card" style="margin-bottom:14px">';
+  h += '<div class="card-head"><div class="card-title">🔍 Data Debug Panel</div>'
+    + '<span style="font-size:11px;color:var(--ink-lt)">Raw GAS output vs normalised values · remove once data is confirmed</span>'
+    + '</div>';
+  h += '<div style="padding:14px 18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px">';
+  h += dbgKpi('Inward rows',   S._debugRawIn  ? S._debugRawIn.length  : '—', S.inwardLoaded);
+  h += dbgKpi('Dispatch rows', S._debugRawDis ? S._debugRawDis.length : '—', S.dispatchLoaded);
+  h += dbgKpi('fmt(today)',    fmt(today),    true);
+  h += dbgKpi('fmt(yesterday)',fmt(yesterday),true);
+  h += dbgKpi('AUTO_PROD_TAB',AUTO_PROD_TAB, true);
+  h += '</div></div>';
+  h += renderDebugSection('INWARD',   S.cfg.inwardTab,   S._debugRawIn,  S.inward,   S.inwardLoaded);
+  h += renderDebugSection('DISPATCH', S.cfg.dispatchTab, S._debugRawDis, S.dispatch, S.dispatchLoaded);
+  return h;
+}
+
+function dbgKpi(label, value, ok) {
+  return '<div style="background:' + (ok?'var(--greenBg)':'var(--redBg)') + ';border:1px solid '
+    + (ok?'var(--greenBd)':'var(--redBd)') + ';border-radius:8px;padding:10px 12px">'
+    + '<div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--ink-lt);margin-bottom:4px">' + esc(label) + '</div>'
+    + '<div style="font-size:13px;font-weight:700;color:var(--slate);font-family:monospace">' + esc(String(value)) + '</div>'
+    + '</div>';
+}
+
+function renderDebugSection(title, tabName, rawRows, normRows, loaded) {
+  var h = '<div class="card" style="margin-bottom:14px;overflow:hidden">';
+  h += '<div class="card-head">'
+    + '<div class="card-title">' + esc(title) + '</div>'
+    + '<span style="font-size:11px;font-family:monospace;background:var(--slate-lt);padding:3px 8px;border-radius:4px">'
+    + 'Tab: ' + esc(tabName||'—') + ' · '
+    + (loaded ? '<span style="color:var(--green)">✓ Loaded</span>' : '<span style="color:var(--red)">✗ Not Loaded</span>')
+    + ' · ' + (rawRows ? rawRows.length : 0) + ' rows'
+    + '</span></div>';
+
+  if (!loaded || !rawRows || rawRows.length === 0) {
+    h += '<div class="empty"><span class="empty-ico">⚠️</span>'
+      + (loaded ? 'GAS returned 0 rows — check tab name and sheetId in config.json' : 'Not loaded — check connection')
+      + '</div></div>';
+    return h;
+  }
+
+  // RAW data from GAS
+  var rawHeaders = Object.keys(rawRows[0]);
+  h += '<div style="padding:8px 18px 4px"><div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--gold-dk)">RAW FROM GAS (first 10 rows)</div></div>';
+  h += '<div class="tw"><table><thead><tr>';
+  rawHeaders.forEach(function(hdr) { h += '<th>' + esc(hdr) + '</th>'; });
+  h += '</tr></thead><tbody>';
+  rawRows.slice(0, 10).forEach(function(row) {
+    h += '<tr>';
+    rawHeaders.forEach(function(hdr) {
+      var val = row[hdr];
+      var isDate = hdr.toLowerCase()==='date' || hdr.toLowerCase()==='month';
+      h += '<td style="' + (isDate?'background:#FEF5E4;font-weight:700;color:var(--gold-dk)':'') + '">'
+        + esc(String(val===null||val===undefined?'':val)) + '</td>';
+    });
+    h += '</tr>';
+  });
+  h += '</tbody></table></div>';
+
+  // NORMALISED data
+  if (normRows && normRows.length > 0) {
+    var normHeaders = Object.keys(normRows[0]);
+    h += '<div style="padding:8px 18px 4px;margin-top:6px"><div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--blue)">AFTER JS normalise()</div></div>';
+    h += '<div class="tw"><table><thead><tr>';
+    normHeaders.forEach(function(hdr) { h += '<th>' + esc(hdr) + '</th>'; });
+    h += '</tr></thead><tbody>';
+    normRows.slice(0, 10).forEach(function(row) {
+      h += '<tr>';
+      normHeaders.forEach(function(hdr) {
+        var val = row[hdr];
+        var isDate     = hdr === 'date';
+        var matchToday = isDate && val === fmt(today);
+        var matchYest  = isDate && val === fmt(yesterday);
+        var style = isDate
+          ? (matchToday ? 'background:#E6F7F2;color:var(--green);font-weight:700'
+            : matchYest ? 'background:#EBF2FB;color:var(--blue);font-weight:700'
+            : 'background:#FEF5E4;font-weight:700;color:var(--gold-dk)')
+          : '';
+        h += '<td style="' + style + '">'
+          + esc(String(val===null||val===undefined?'':val))
+          + (matchToday?' ←TODAY':matchYest?' ←YEST':'') + '</td>';
+      });
+      h += '</tr>';
+    });
+    h += '</tbody></table></div>';
+
+    // Date summary
+    var allDates  = normRows.map(function(r){return r.date;});
+    var uniqDates = allDates.filter(function(v,i,a){return a.indexOf(v)===i;}).sort();
+    h += '<div style="padding:10px 18px 14px;font-size:11px;color:var(--ink-mid)">'
+      + '<strong>Unique dates in data:</strong> ';
+    uniqDates.forEach(function(d) {
+      var cnt  = allDates.filter(function(x){return x===d;}).length;
+      var isT  = d===fmt(today);
+      var isY  = d===fmt(yesterday);
+      h += '<span style="display:inline-block;margin:3px;padding:3px 8px;border-radius:4px;'
+        + 'background:' + (isT?'var(--greenBg)':isY?'var(--blueBg)':'var(--slate-lt)') + ';'
+        + 'color:' + (isT?'var(--green)':isY?'var(--blue)':'var(--ink-mid)') + ';'
+        + 'font-family:monospace;font-size:11px">'
+        + esc(d) + ' (' + cnt + ')' + (isT?' TODAY':'') + (isY?' YEST':'') + '</span>';
+    });
+    h += '<br><br><strong>Dashboard looks for:</strong>'
+      + ' Today = <code style="background:var(--greenBg);color:var(--green);padding:2px 6px;border-radius:4px">' + esc(fmt(today)) + '</code>'
+      + ' &nbsp; Yesterday = <code style="background:var(--blueBg);color:var(--blue);padding:2px 6px;border-radius:4px">' + esc(fmt(yesterday)) + '</code>'
+      + '</div>';
+  }
+
+  h += '</div>';
+  return h;
+}
+
 function renderAuEntry() {
   var h = '<div class="au-wrap">';
 
