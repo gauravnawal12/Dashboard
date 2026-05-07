@@ -1948,38 +1948,88 @@ var GAS_CODE = [
 // as a belt-and-suspenders defence even though GAS now sends correct strings.
 
 /**
- * Fix dates that GAS has swapped due to DD/MM/YYYY vs MM/DD/YYYY ambiguity.
+ * CONFIRMED DATE PATTERN (from GAS debug data):
  *
- * Sheet stores dates as DD/MM/YYYY (e.g. 02/05/2026 = 2nd May).
- * GAS interprets as MM/DD/YYYY → sends "05 Feb 2026" instead of "02 May 2026".
+ * Sheet stores dates as DD/MM/YYYY text (e.g. 01/05/2026 = 1st May 2026).
+ * GAS interprets as MM/DD/YYYY → swaps day and month:
+ *   01/05/2026 → month=01(Jan), day=05 → sends "05 Jan 2026"  ✗
+ *   02/05/2026 → month=02(Feb), day=05 → sends "05 Feb 2026"  ✗
+ *   05/05/2026 → month=05(May), day=05 → sends "05 May 2026"  ✓ (coincidentally correct)
+ *   06/05/2026 → month=06(Jun), day=05 → sends "05 Jun 2026"  ✗
  *
- * Strategy: the Inward sheet has a "Month" column (e.g. "May 2026") that
- * tells us the correct month. If the month in the Date field doesn't match
- * the Month column, the day and month were swapped — so we swap them back.
+ * Fix rule:
+ *   - If a trusted Month column hint is available (Inward): use it to identify
+ *     the correct month, then reconstruct the date.
+ *   - If no hint (Dispatch): check if the GAS "day" value equals the numeric
+ *     value of the GAS "month" abbreviation. If they match (e.g. "05 May" →
+ *     day=5, May=5), the date is already correct — leave it. If they don't
+ *     match (e.g. "05 Jan" → day=5, Jan=1, 5≠1), swap them.
  *
- * For Dispatch (no Month column): we detect the swap by checking if the
- * "month" part of the date string (e.g. "Jan" = 1) is ≤ 12 and could
- * plausibly be a day (DD), then reconstruct using the day value as month.
- * Since all dates are in 2026, if the month abbreviation decodes to a
- * number ≤ 12 and the day value is also ≤ 12, we assume swap occurred.
+ * This correctly handles all confirmed cases:
+ *   "05 Jan 2026" → 5≠1 → swap → "01 May 2026" ✓
+ *   "05 Feb 2026" → 5≠2 → swap → "02 May 2026" ✓
+ *   "05 May 2026" → 5=5 → no swap → "05 May 2026" ✓
+ *   "05 Jun 2026" → 5≠6 → swap → "06 May 2026" ✓
+ *   "15 Mar 2026" → day=15>12, can't be month → no swap → "15 Mar 2026" ✓
  */
 function fixDateSwap(dateStr, correctMonAbbr) {
-  // dateStr format: "DD MMM YYYY" e.g. "05 Feb 2026" (wrong) or "02 May 2026" (right)
   if (!dateStr) return '';
-  var p = dateStr.trim().split(/\s+/);
-  if (p.length !== 3) return dateStr;
-  var gasDay = parseInt(p[0], 10);  // GAS put this as day — may actually be month
-  var gasMon = p[1];                // GAS put this as month — may actually be day
-  var year   = p[2];
+  dateStr = String(dateStr).trim();
 
-  if (correctMonAbbr && gasMon !== correctMonAbbr) {
-    // Swap: real day = index of gasMon in MONTHS_SHORT + 1
-    var realDay = MONTHS_SHORT.indexOf(gasMon) + 1;
-    if (realDay > 0) {
-      return (realDay < 10 ? '0' : '') + realDay + ' ' + correctMonAbbr + ' ' + year;
+  // ── Handle raw DD/MM/YYYY strings (days 13-31) ───────────────────
+  // When DD > 12, GAS can't interpret it as a month number, so it sends
+  // the raw string "13/05/2026" instead of a formatted date like "05 Jun 2026".
+  // Parse these directly: DD=first, MM=middle, YYYY=last.
+  var slashMatch = dateStr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (slashMatch) {
+    var dd = parseInt(slashMatch[1], 10);
+    var mm = parseInt(slashMatch[2], 10);
+    var yy = slashMatch[3];
+    // Determine which is day and which is month
+    // If correctMonAbbr is available, use its month number
+    if (correctMonAbbr) {
+      var hintMon = MONTHS_SHORT.indexOf(correctMonAbbr) + 1;
+      // If mm matches the hint month, format is DD/MM/YYYY → dd is real day
+      if (mm === hintMon) {
+        return (dd < 10 ? '0' : '') + dd + ' ' + correctMonAbbr + ' ' + yy;
+      }
+      // If dd matches the hint month, format is MM/DD/YYYY → mm is real day
+      if (dd === hintMon) {
+        return (mm < 10 ? '0' : '') + mm + ' ' + correctMonAbbr + ' ' + yy;
+      }
     }
+    // No hint: assume DD/MM/YYYY (your sheet format)
+    if (mm >= 1 && mm <= 12) {
+      var mon = MONTHS_SHORT[mm - 1];
+      return (dd < 10 ? '0' : '') + dd + ' ' + mon + ' ' + yy;
+    }
+    return dateStr;
   }
-  return dateStr;
+
+  // ── Handle "DD MMM YYYY" strings (days 1-12, GAS-formatted) ──────
+  var p = dateStr.split(/\s+/);
+  if (p.length !== 3) return dateStr;
+
+  var gasDay    = parseInt(p[0], 10);
+  var gasMon    = p[1];
+  var year      = p[2];
+  var gasMonNum = MONTHS_SHORT.indexOf(gasMon) + 1;
+  if (gasMonNum === 0) return dateStr;
+
+  // Case 1: trusted Month column (Inward)
+  if (correctMonAbbr) {
+    if (gasMon === correctMonAbbr) return dateStr;
+    var realDay = gasMonNum;
+    return (realDay < 10 ? '0' : '') + realDay + ' ' + correctMonAbbr + ' ' + year;
+  }
+
+  // Case 2: no hint (Dispatch) — swap when day and month are inconsistent
+  if (gasDay > 12) return dateStr;
+  if (gasDay === gasMonNum) return dateStr; // self-consistent, already correct
+  var realMon    = MONTHS_SHORT[gasDay - 1];
+  var realDayNum = gasMonNum;
+  if (!realMon) return dateStr;
+  return (realDayNum < 10 ? '0' : '') + realDayNum + ' ' + realMon + ' ' + year;
 }
 
 function extractMonAbbr(monthHint) {
@@ -2038,28 +2088,6 @@ function normalDis(r) {
   var rawDate   = String(pick('Date','DATE','date','Entry Date','Dispatch Date') || '');
   var monthHint = String(pick('Month','MONTH','month') || '');
   var monAbbr   = extractMonAbbr(monthHint);
-  // For dispatch, if no Month column, try to detect swap:
-  // If the date "DD MMM YYYY" has MMM that decodes to a number ≤ 12
-  // and DD is also ≤ 12, both could be day or month — use the year context.
-  // We detect: if gasMon (as a number) < gasDay, likely swapped.
-  if (!monAbbr) {
-    var dp = rawDate.trim().split(/\s+/);
-    if (dp.length === 3) {
-      var gasD  = parseInt(dp[0], 10);
-      var gasM  = MONTHS_SHORT.indexOf(dp[1]) + 1; // 1-12
-      // If gasD (what GAS calls day) > 12, it can't be a month → not swapped
-      // If gasM (what GAS calls month index) ≤ 12 and gasD ≤ 12 → ambiguous
-      // Heuristic: if gasM < gasD, the values were likely swapped
-      // (real day = gasM number, real month = MONTHS_SHORT[gasD-1])
-      if (gasM > 0 && gasD <= 12 && gasM < gasD) {
-        var realMon = MONTHS_SHORT[gasD - 1];
-        if (realMon) {
-          monAbbr = realMon;
-          rawDate = fixDateSwap(rawDate, monAbbr);
-        }
-      }
-    }
-  }
   var fixedDate = fixDateSwap(rawDate, monAbbr);
 
   return {
@@ -4099,8 +4127,8 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// Auto-refresh live data every 10 minutes
-setInterval(function(){ if (S.isLive) loadData(); }, 10 * 60 * 1000);
+// Auto-refresh live data every 5 minutes
+setInterval(function(){ if (S.isLive) loadData(); }, 5 * 60 * 1000);
 
 // Show a loading state immediately while config.json is being fetched
 // bootstrapConfig() will call updateHeader() + render() once config is ready
