@@ -1988,8 +1988,44 @@ function normalIn(r) {
     }
     return '';
   }
+
+  var rawDate   = String(pick('Date','DATE','date','Entry Date','Inward Date') || '');
+  var monthHint = String(pick('Month','MONTH','month') || '');
+
+  // ── Date correction using Month column ───────────────────────────
+  // GAS sends "05 Feb 2026" when the real date is "02 May 2026" because
+  // it reads DD/MM/YYYY as MM/DD/YYYY. The Month column ("May 2026") tells
+  // us the correct month. We use it to swap back.
+  var fixedDate = rawDate;
+  if (monthHint) {
+    // Extract month abbreviation from hint e.g. "May 2026" → "May"
+    var hintMon = null;
+    var hParts = monthHint.trim().split(/\s+/);
+    for (var hi = 0; hi < hParts.length; hi++) {
+      if (MONTHS_SHORT.indexOf(hParts[hi]) !== -1) { hintMon = hParts[hi]; break; }
+    }
+    if (hintMon) {
+      // rawDate format: "DD MMM YYYY" e.g. "05 Feb 2026"
+      var dp = rawDate.trim().split(/\s+/);
+      if (dp.length === 3) {
+        var gasDay    = parseInt(dp[0], 10);  // e.g. 5  — this is actually MM in the sheet
+        var gasMon    = dp[1];                // e.g. "Feb" — this is actually DD in the sheet
+        var year      = dp[2];
+        if (gasMon !== hintMon) {
+          // Months don't match → swap needed
+          // Real day = the number that gasMon represents (e.g. Feb=2)
+          var realDay = MONTHS_SHORT.indexOf(gasMon) + 1;
+          if (realDay > 0) {
+            fixedDate = (realDay < 10 ? '0' : '') + realDay + ' ' + hintMon + ' ' + year;
+          }
+        }
+        // If gasMon === hintMon (e.g. "05 May" + hint "May") → already correct
+      }
+    }
+  }
+
   return {
-    date:     String(pick('Date','DATE','date','Entry Date','Inward Date') || ''),
+    date:     fixedDate,
     time:     cleanTime(String(pick('Time','TIME','time','Entry Time') || '')),
     supplier: String(pick('Supplier Name','Supplier','SUPPLIER','supplier') || ''),
     bill:     String(pick('Bill/Challan No.','Bill/Challan No','Bill No','Bill No.','Challan No','Challan No.','Bill','bill') || ''),
