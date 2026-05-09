@@ -1989,37 +1989,41 @@ function normalIn(r) {
     return '';
   }
 
-  var rawDate   = String(pick('Date','DATE','date','Entry Date','Inward Date') || '');
-  var monthHint = String(pick('Month','MONTH','month') || '');
+  var rawDate = String(pick('Date','DATE','date','Entry Date','Inward Date') || '');
 
-  // ── Date correction using Month column ───────────────────────────
-  // GAS sends "05 Feb 2026" when the real date is "02 May 2026" because
-  // it reads DD/MM/YYYY as MM/DD/YYYY. The Month column ("May 2026") tells
-  // us the correct month. We use it to swap back.
+  // ── Date normalisation ──────────────────────────────────────────────
+  // GAS now sends dates as "D/M/YYYY" e.g. "2/5/2026" (DD/MM/YYYY without
+  // leading zeros). Convert to "DD MMM YYYY" to match fmt(today).
+  // Also handles already-correct "DD MMM YYYY" — passes through unchanged.
+  // Fallback: if still "DD MMM YYYY" with swapped month, use Month column.
   var fixedDate = rawDate;
-  if (monthHint) {
-    // Extract month abbreviation from hint e.g. "May 2026" → "May"
-    var hintMon = null;
-    var hParts = monthHint.trim().split(/\s+/);
-    for (var hi = 0; hi < hParts.length; hi++) {
-      if (MONTHS_SHORT.indexOf(hParts[hi]) !== -1) { hintMon = hParts[hi]; break; }
+
+  var slashMatch = rawDate.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (slashMatch) {
+    // D/M/YYYY format — DD is first, MM is second
+    var dd = parseInt(slashMatch[1], 10);
+    var mm = parseInt(slashMatch[2], 10);
+    var yy = slashMatch[3];
+    if (mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31) {
+      fixedDate = (dd < 10 ? '0' : '') + dd + ' ' + MONTHS_SHORT[mm - 1] + ' ' + yy;
     }
-    if (hintMon) {
-      // rawDate format: "DD MMM YYYY" e.g. "05 Feb 2026"
-      var dp = rawDate.trim().split(/\s+/);
-      if (dp.length === 3) {
-        var gasDay    = parseInt(dp[0], 10);  // e.g. 5  — this is actually MM in the sheet
-        var gasMon    = dp[1];                // e.g. "Feb" — this is actually DD in the sheet
-        var year      = dp[2];
-        if (gasMon !== hintMon) {
-          // Months don't match → swap needed
-          // Real day = the number that gasMon represents (e.g. Feb=2)
-          var realDay = MONTHS_SHORT.indexOf(gasMon) + 1;
+  } else {
+    // "DD MMM YYYY" format — use Month column hint to correct if needed
+    var monthHint = String(pick('Month','MONTH','month') || '');
+    if (monthHint) {
+      var hintMon = null;
+      var hParts = monthHint.trim().split(/\s+/);
+      for (var hi = 0; hi < hParts.length; hi++) {
+        if (MONTHS_SHORT.indexOf(hParts[hi]) !== -1) { hintMon = hParts[hi]; break; }
+      }
+      if (hintMon) {
+        var dp = rawDate.trim().split(/\s+/);
+        if (dp.length === 3 && dp[1] !== hintMon) {
+          var realDay = MONTHS_SHORT.indexOf(dp[1]) + 1;
           if (realDay > 0) {
-            fixedDate = (realDay < 10 ? '0' : '') + realDay + ' ' + hintMon + ' ' + year;
+            fixedDate = (realDay < 10 ? '0' : '') + realDay + ' ' + hintMon + ' ' + dp[2];
           }
         }
-        // If gasMon === hintMon (e.g. "05 May" + hint "May") → already correct
       }
     }
   }
