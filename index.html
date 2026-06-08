@@ -1559,7 +1559,7 @@ var GAS_CODE = [
 '    var sheetId;',
 '    if (register === "stock") {',
 '      sheetId = STOCK_SHEET_ID;',
-'    } else if (register === "au_entry") {',
+'    } else if (register === "au_entry" || register === "au_read") {',
 '      sheetId = AU_SHEET_ID;',
 '    } else {',
 '      // Inward, Dispatch, Production — ID comes from config.json via param',
@@ -4366,8 +4366,8 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// Auto-refresh live data every 5 minutes
-setInterval(function(){ if (S.isLive) loadData(); }, 5 * 60 * 1000);
+// Auto-refresh live data every 10 minutes
+setInterval(function(){ if (S.isLive) loadData(); }, 10 * 60 * 1000);
 
 // Show a loading state immediately while config.json is being fetched
 // bootstrapConfig() will call updateHeader() + render() once config is ready
