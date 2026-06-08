@@ -1907,18 +1907,19 @@ var GAS_CODE = [
 '    if (vals.length < 2) return { data: [], count: 0 };',
 '',
 '    var headers = vals[0].map(function(h) { return String(h || "").trim(); });',
+'    var tz = Session.getScriptTimeZone();',
 '    var data = [];',
 '',
 '    for (var i = 1; i < vals.length; i++) {',
 '      var row = vals[i];',
 '      var hasData = row.some(function(c) { return c !== "" && c !== null && c !== undefined; });',
 '      if (!hasData) continue;',
-'      var obj = {};',
+'      var obj = { _rowIndex: i };',
 '      for (var k = 0; k < headers.length; k++) {',
 '        if (!headers[k]) continue;',
 '        var val = row[k];',
 '        if (val instanceof Date) {',
-'          var tz = Session.getScriptTimeZone();',
+'          obj[headers[k] + "_ts"] = val.getTime();',
 '          val = Utilities.formatDate(val, tz, "dd MMM yyyy");',
 '        }',
 '        obj[headers[k]] = (val === null || val === undefined) ? "" : val;',
@@ -1926,11 +1927,23 @@ var GAS_CODE = [
 '      data.push(obj);',
 '    }',
 '',
-'    // Sort newest first by Timestamp (column 0)',
+'    // Sort by Date column descending (most recent date first)',
+'    // Parse "DD MMM YYYY" → numeric value for reliable comparison',
+'    var MON_IDX = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};',
+'    function parseDateVal(str) {',
+'      if (!str) return 0;',
+'      var p = String(str).trim().split(/\\s+/);',
+'      if (p.length < 3) return 0;',
+'      var d = parseInt(p[0],10), m = MON_IDX[p[1]], y = parseInt(p[2],10);',
+'      if (isNaN(d) || m === undefined || isNaN(y)) return 0;',
+'      return y * 10000 + m * 100 + d;',
+'    }',
 '    data.sort(function(a, b) {',
-'      var ta = String(a["Timestamp"] || "");',
-'      var tb = String(b["Timestamp"] || "");',
-'      return tb.localeCompare(ta);',
+'      var da = parseDateVal(a["Date"]);',
+'      var db = parseDateVal(b["Date"]);',
+'      if (db !== da) return db - da;',
+'      // Same date — preserve sheet order (later row first)',
+'      return b._rowIndex - a._rowIndex;',
 '    });',
 '',
 '    return { data: data, count: data.length };',
@@ -3543,10 +3556,10 @@ function renderAuEntry() {
   h += '</div>'; // end .au-card
 
   // ── All Entries Table ────────────────────────────────────────────
-  // Merge sheet entries + session entries (session entries on top)
+  // Merge: session entries always on top, sheet entries below (newest first from GAS)
   var allEntries = [];
 
-  // Session entries (just submitted, not yet in sheet)
+  // Session entries submitted this session — newest first (last pushed = most recent)
   S.auHistory.slice().reverse().forEach(function(e) {
     allEntries.push({
       date:      e.date,
@@ -3558,7 +3571,7 @@ function renderAuEntry() {
     });
   });
 
-  // Sheet entries loaded from GAS
+  // Sheet entries from GAS (already sorted newest first by row index)
   if (S.auLoaded && S.auEntries.length) {
     S.auEntries.forEach(function(r) {
       allEntries.push({
@@ -3715,8 +3728,18 @@ function submitAuEntry() {
 
     if (data.error) { showAuResult(false,'Error: ' + data.error); return; }
 
-    // Add to session history and re-fetch sheet data
+    // Add to session history (shows as NEW badge)
     S.auHistory.push({ enteredBy:enteredBy, date:dateFmt, party:party, amount:amount, remarks:remarks });
+
+    // Also prepend to auEntries so it shows at top even before re-fetch
+    S.auEntries.unshift({
+      'Date':       dateFmt,
+      'Entered By': enteredBy,
+      'Party Name': party,
+      'Amount':     amount,
+      'Remarks':    remarks,
+      '_isNew':     true,
+    });
 
     // Reset fields — keep Entered By for fast repeat entry
     ['au-party','au-amount','au-remarks'].forEach(function(id) {
@@ -4366,8 +4389,8 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// Auto-refresh live data every 10 minutes
-setInterval(function(){ if (S.isLive) loadData(); }, 10 * 60 * 1000);
+// Auto-refresh live data every 5 minutes
+setInterval(function(){ if (S.isLive) loadData(); }, 5 * 60 * 1000);
 
 // Show a loading state immediately while config.json is being fetched
 // bootstrapConfig() will call updateHeader() + render() once config is ready
