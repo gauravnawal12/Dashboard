@@ -2766,36 +2766,35 @@ function renderMonthlyIn() {
   window._ch_mi = { bySup: bySup, byMat: byMat };
 
   h += '<div class="tw" style="margin-top:2px"><table>'
-    + '<thead><tr><th>Supplier / Material</th><th class="r">Trips</th>'
+    + '<thead><tr><th>Supplier Name</th><th>Material Name</th><th class="r">Trips</th>'
     + '<th class="r">Qty</th><th class="r">Qty (KG)</th><th class="r">% Share</th></tr></thead><tbody>';
 
-  skeys.forEach(function(sup) {
-    var sr = bySup[sup], st = sumKg(sr), sq = sumBy(sr,'qty'), pct = grand ? (st/grand*100) : 0;
-    var open = true;   // every material always shown as its own row
-    var byMat2 = groupBy(sr, 'material');
-    var safeKey = esc(sup).replace(/'/g,"\\'");
-    h += '<tr class="gr-head">'
-      + '<td>' + esc(sup) + '</td>'
-      + '<td class="td-muted" style="text-align:right">' + sr.length + '</td>'
-      + '<td class="td-num">' + ni(sq) + '</td>'
-      + '<td class="td-gold">' + nkg(st) + '</td>'
+  // One flat row per supplier + material, sorted A-Z by supplier then material
+  var combos = {};
+  rows.forEach(function(r) {
+    var k = r.supplier + '\u0001' + r.material;
+    if (!combos[k]) combos[k] = { supplier: r.supplier, material: r.material, trips: 0, qty: 0, kg: 0 };
+    combos[k].trips++; combos[k].qty += r.qty; combos[k].kg += (r.kg || 0);
+  });
+  var list = Object.keys(combos).map(function(k){ return combos[k]; });
+  list.sort(function(a, b) {
+    var c = String(a.supplier).toLowerCase().localeCompare(String(b.supplier).toLowerCase());
+    return c || String(a.material).toLowerCase().localeCompare(String(b.material).toLowerCase());
+  });
+  list.forEach(function(c) {
+    var pct = grand ? (c.kg / grand * 100) : 0;
+    h += '<tr>'
+      + '<td class="td-bold">' + esc(c.supplier) + '</td>'
+      + '<td>' + esc(c.material) + '</td>'
+      + '<td class="td-muted" style="text-align:right">' + c.trips + '</td>'
+      + '<td class="td-num">' + ni(c.qty) + '</td>'
+      + '<td class="td-gold">' + (c.kg ? nkg(c.kg) : '—') + '</td>'
       + '<td style="text-align:right;vertical-align:middle">'
       + '<span style="font-size:11px;color:var(--ink-mid)">' + pct.toFixed(1) + '%</span>'
       + mbar(pct) + '</td></tr>';
-    if (open) {
-      Object.keys(byMat2).forEach(function(mat) {
-        var mt = sumKg(byMat2[mat]), mq = sumBy(byMat2[mat],'qty');
-        h += '<tr class="gr-sub"><td style="padding-left:38px!important">↳ ' + esc(mat) + '</td>'
-          + '<td class="td-muted" style="text-align:right">' + byMat2[mat].length + '</td>'
-          + '<td class="td-num">' + ni(mq) + '</td>'
-          + '<td class="td-num">' + (mt ? nkg(mt) : '—') + '</td>'
-          + '<td style="text-align:right;font-size:11px;color:var(--ink-lt)">'
-          + (grand?(mt/grand*100).toFixed(1):0) + '%</td></tr>';
-      });
-    }
   });
 
-  h += '<tr class="gr-total"><td>Grand Total</td>'
+  h += '<tr class="gr-total"><td colspan="2">Grand Total</td>'
     + '<td class="td-num" style="text-align:right">' + rows.length + '</td>'
     + '<td class="td-num" style="text-align:right">' + ni(grandQty) + '</td>'
     + '<td class="td-gold">' + nkg(grand) + '</td>'
