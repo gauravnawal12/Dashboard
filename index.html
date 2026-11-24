@@ -2758,7 +2758,7 @@ function renderMonthlyIn() {
 
   var byMat = groupBy(rows, 'material');
   h += '<div class="charts-section"><div class="charts-row col2">'
-    + '<div class="chart-box"><div class="chart-title">Qty (KG) by Supplier</div>'
+    + '<div class="chart-box"><div class="chart-title">% Share by Material (KG)</div>'
     + '<div class="chart-canvas-wrap" style="height:180px"><canvas id="ch-mi-s" height="180"></canvas></div></div>'
     + '<div class="chart-box"><div class="chart-title">Qty (KG) by Material</div>'
     + '<div class="chart-canvas-wrap" style="height:180px"><canvas id="ch-mi-m" height="180"></canvas></div></div>'
@@ -4174,11 +4174,9 @@ function _drawChartsNow() {
   }
   // Monthly Inward — supplier share (donut) + material qty (bar)
   if (window._ch_mi) {
-    var sl = Object.keys(window._ch_mi.bySup);
-    var sv = sl.map(function(k){ return sumKg(window._ch_mi.bySup[k]); });
-    drawDonut('ch-mi-s', sl, sv);
     var ml = Object.keys(window._ch_mi.byMat);
     var mv = ml.map(function(k){ return sumKg(window._ch_mi.byMat[k]); });
+    drawDonut('ch-mi-s', ml, mv);
     drawBar('ch-mi-m', ml, mv, null);
   }
   // Daily Dispatch — qty by product (bar)
