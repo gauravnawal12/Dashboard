@@ -2036,6 +2036,28 @@ function extractMonAbbr(monthHint) {
   return null;
 }
 
+/* Inward qty -> KG. Qty for aggregates/sand/dust is in CFT. */
+var KG_PER_UNIT = { 'sand':42.150, 'dust':42.400, 'mixdust':40.500, '6mm':35.800,
+                    '10mm':36.350, '20mm':37.650, 'cementbag':50, '10chakkatanker':10000 };
+var KG_AS_IS    = { 'cementbulker':1, 'flyash':1 };
+function toKg(material, qty) {
+  var k = String(material||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+  if (KG_AS_IS[k]) return qty;
+  if (KG_PER_UNIT[k] !== undefined) return qty * KG_PER_UNIT[k];
+  if (k.indexOf('bulker')>=0 || k.indexOf('flyash')>=0) return qty;
+  if (k.indexOf('chakka')>=0 && k.indexOf('tanker')>=0) return qty*10000;
+  if (k.indexOf('cement')>=0 && k.indexOf('bag')>=0) return qty*50;
+  if (k.indexOf('mixdust')>=0) return qty*40.5;
+  if (k.indexOf('dust')>=0)    return qty*42.4;
+  if (k.indexOf('sand')>=0)    return qty*42.15;
+  if (k.indexOf('20mm')>=0)    return qty*37.65;
+  if (k.indexOf('10mm')>=0)    return qty*36.35;
+  if (k.indexOf('6mm')>=0)     return qty*35.8;
+  return 0; // unmapped material: not counted in KG
+}
+function nkg(v){ return Math.round(v).toLocaleString('en-IN'); }
+function sumKg(a){ return a.reduce(function(t,r){return t+(r.kg||0);},0); }
+
 function normalIn(r) {
   var lc = {};
   Object.keys(r).forEach(function(k) { lc[k.toLowerCase().trim()] = r[k]; });
@@ -2086,7 +2108,7 @@ function normalIn(r) {
     }
   }
 
-  return {
+  var _o = {
     date:     fixedDate,
     time:     cleanTime(String(pick('Time','TIME','time','Entry Time') || '')),
     supplier: String(pick('Supplier Name','Supplier','SUPPLIER','supplier') || ''),
@@ -2095,6 +2117,8 @@ function normalIn(r) {
     vehicle:  String(pick('Vehicle No.','Vehicle No','Vehicle','vehicle','Truck No') || ''),
     qty:      parseFloat(pick('Quantity','Qty','QTY','qty','Quantity (Units)','Units') || 0) || 0,
   };
+  _o.kg = toKg(_o.material, _o.qty);
+  return _o;
 }
 
 function normalDis(r) {
@@ -2620,21 +2644,23 @@ function renderDailyIn() {
   });
 
   var totalQty = rows.reduce(function(s,r){return s+r.qty;},0);
+  var totalKg  = sumKg(rows);
   var sups     = {}; rows.forEach(function(r){sups[r.supplier]=1;});
 
   // KPI row
   h += '<div style="padding:14px 20px 0"><div class="kpi-grid">'
     + kpi('Trips',     rows.length,                    '', '#E8A020', '🚚')
     + kpi('Total Qty', ni(totalQty),                   '', '#1A6FC4', '📦')
+    + kpi('Total Qty (KG)', nkg(totalKg),              '', '#E8A020', '⚖️')
     + kpi('Suppliers', Object.keys(sups).length,       '', '#0F9E6E', '🏭')
     + '</div></div>';
 
   // Chart — only when there is data
   var byMat = {};
-  rows.forEach(function(r){ byMat[r.material] = (byMat[r.material]||0) + r.qty; });
+  rows.forEach(function(r){ byMat[r.material] = (byMat[r.material]||0) + (r.kg||0); });
   if (Object.keys(byMat).length) {
     h += '<div class="charts-section"><div class="charts-row">'
-      + '<div class="chart-box"><div class="chart-title">Quantity by Material</div>'
+      + '<div class="chart-box"><div class="chart-title">Quantity (KG) by Material</div>'
       + '<div class="chart-canvas-wrap" style="height:140px">'
       + '<canvas id="ch-di" height="140"></canvas></div>'
       + '</div></div></div>';
@@ -2667,7 +2693,7 @@ function renderDailyIn() {
   } else {
     h += '<table><thead><tr>'
       + '<th>Time</th><th>Supplier</th><th>Bill / Challan</th>'
-      + '<th>Material</th><th>Vehicle</th><th class="r">Qty</th>'
+      + '<th>Material</th><th>Vehicle</th><th class="r">Qty</th><th class="r">Qty (KG)</th>'
       + '</tr></thead><tbody>';
     rows.forEach(function(r) {
       h += '<tr>'
@@ -2677,8 +2703,12 @@ function renderDailyIn() {
         + '<td>'                  + esc(r.material) + '</td>'
         + '<td class="td-muted">' + esc(r.vehicle)  + '</td>'
         + '<td class="td-green">' + ni(r.qty)       + '</td>'
+        + '<td class="td-green">' + (r.kg ? nkg(r.kg) : '—') + '</td>'
         + '</tr>';
     });
+    h += '<tr class="gr-total"><td colspan="5">Total</td>'
+      + '<td class="td-num" style="text-align:right">' + ni(totalQty) + '</td>'
+      + '<td class="td-gold">' + nkg(totalKg) + '</td></tr>';
     h += '</tbody></table>';
   }
   h += '</div></div>';
@@ -2705,11 +2735,12 @@ function renderMonthlyIn() {
 
   var rows  = S.inward.filter(function(r){ return dateInMonth(r.date, S.miYear, S.miMonth); });
   var bySup = groupBy(rows, 'supplier');
-  var grand = sumBy(rows, 'qty');
-  var skeys = Object.keys(bySup).sort(function(a,b){ return sumBy(bySup[b],'qty') - sumBy(bySup[a],'qty'); });
+  var grand = sumKg(rows);   // % share is based on Qty (KG)
+  var grandQty = sumBy(rows, 'qty');
+  var skeys = Object.keys(bySup).sort(function(a,b){ return sumKg(bySup[b]) - sumKg(bySup[a]); });
 
   h += '<div style="padding:14px 20px 0"><div class="kpi-grid">'
-    + kpi('Total Received', ni(grand),                 '', '#E8A020', '📥')
+    + kpi('Total Received (KG)', nkg(grand),            '', '#E8A020', '📥')
     + kpi('Suppliers',      Object.keys(bySup).length, '', '#0F9E6E', '🏭')
     + kpi('Trips',          rows.length,               '', '#1A6FC4', '🚛')
     + '</div></div>';
@@ -2727,35 +2758,37 @@ function renderMonthlyIn() {
 
   var byMat = groupBy(rows, 'material');
   h += '<div class="charts-section"><div class="charts-row col2">'
-    + '<div class="chart-box"><div class="chart-title">Qty by Supplier</div>'
+    + '<div class="chart-box"><div class="chart-title">Qty (KG) by Supplier</div>'
     + '<div class="chart-canvas-wrap" style="height:180px"><canvas id="ch-mi-s" height="180"></canvas></div></div>'
-    + '<div class="chart-box"><div class="chart-title">Qty by Material</div>'
+    + '<div class="chart-box"><div class="chart-title">Qty (KG) by Material</div>'
     + '<div class="chart-canvas-wrap" style="height:180px"><canvas id="ch-mi-m" height="180"></canvas></div></div>'
     + '</div></div>';
   window._ch_mi = { bySup: bySup, byMat: byMat };
 
   h += '<div class="tw" style="margin-top:2px"><table>'
     + '<thead><tr><th>Supplier / Material</th><th class="r">Trips</th>'
-    + '<th class="r">Total Qty</th><th class="r">% Share</th></tr></thead><tbody>';
+    + '<th class="r">Qty</th><th class="r">Qty (KG)</th><th class="r">% Share</th></tr></thead><tbody>';
 
   skeys.forEach(function(sup) {
-    var sr = bySup[sup], st = sumBy(sr,'qty'), pct = grand ? (st/grand*100) : 0;
-    var open = !!S.xIn[sup];
+    var sr = bySup[sup], st = sumKg(sr), sq = sumBy(sr,'qty'), pct = grand ? (st/grand*100) : 0;
+    var open = true;   // every material always shown as its own row
     var byMat2 = groupBy(sr, 'material');
     var safeKey = esc(sup).replace(/'/g,"\\'");
-    h += '<tr class="gr-head" onclick="S.xIn[\'' + safeKey + '\']=!S.xIn[\'' + safeKey + '\'];render()">'
-      + '<td><span style="color:var(--gold);margin-right:7px;font-size:10px">' + (open?'▾':'▸') + '</span>' + esc(sup) + '</td>'
+    h += '<tr class="gr-head">'
+      + '<td>' + esc(sup) + '</td>'
       + '<td class="td-muted" style="text-align:right">' + sr.length + '</td>'
-      + '<td class="td-gold">' + ni(st) + '</td>'
+      + '<td class="td-num">' + ni(sq) + '</td>'
+      + '<td class="td-gold">' + nkg(st) + '</td>'
       + '<td style="text-align:right;vertical-align:middle">'
       + '<span style="font-size:11px;color:var(--ink-mid)">' + pct.toFixed(1) + '%</span>'
       + mbar(pct) + '</td></tr>';
     if (open) {
       Object.keys(byMat2).forEach(function(mat) {
-        var mt = sumBy(byMat2[mat],'qty');
+        var mt = sumKg(byMat2[mat]), mq = sumBy(byMat2[mat],'qty');
         h += '<tr class="gr-sub"><td style="padding-left:38px!important">↳ ' + esc(mat) + '</td>'
           + '<td class="td-muted" style="text-align:right">' + byMat2[mat].length + '</td>'
-          + '<td class="td-num">' + ni(mt) + '</td>'
+          + '<td class="td-num">' + ni(mq) + '</td>'
+          + '<td class="td-num">' + (mt ? nkg(mt) : '—') + '</td>'
           + '<td style="text-align:right;font-size:11px;color:var(--ink-lt)">'
           + (grand?(mt/grand*100).toFixed(1):0) + '%</td></tr>';
       });
@@ -2764,7 +2797,8 @@ function renderMonthlyIn() {
 
   h += '<tr class="gr-total"><td>Grand Total</td>'
     + '<td class="td-num" style="text-align:right">' + rows.length + '</td>'
-    + '<td class="td-gold">' + ni(grand) + '</td>'
+    + '<td class="td-num" style="text-align:right">' + ni(grandQty) + '</td>'
+    + '<td class="td-gold">' + nkg(grand) + '</td>'
     + '<td style="text-align:right;font-size:10px;color:var(--ink-lt)">100%</td></tr>';
   h += '</tbody></table></div></div>';
   return h;
@@ -4142,10 +4176,10 @@ function _drawChartsNow() {
   // Monthly Inward — supplier share (donut) + material qty (bar)
   if (window._ch_mi) {
     var sl = Object.keys(window._ch_mi.bySup);
-    var sv = sl.map(function(k){ return sumBy(window._ch_mi.bySup[k],'qty'); });
+    var sv = sl.map(function(k){ return sumKg(window._ch_mi.bySup[k]); });
     drawDonut('ch-mi-s', sl, sv);
     var ml = Object.keys(window._ch_mi.byMat);
-    var mv = ml.map(function(k){ return sumBy(window._ch_mi.byMat[k],'qty'); });
+    var mv = ml.map(function(k){ return sumKg(window._ch_mi.byMat[k]); });
     drawBar('ch-mi-m', ml, mv, null);
   }
   // Daily Dispatch — qty by product (bar)
