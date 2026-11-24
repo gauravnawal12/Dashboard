@@ -2055,6 +2055,17 @@ function toKg(material, qty) {
   if (k.indexOf('6mm')>=0)     return qty*35.8;
   return 0; // unmapped material: not counted in KG
 }
+/* A trip = unique Vehicle No. + Bill/Challan No. (one vehicle may carry several products) */
+function tripCount(rows){
+  var seen = {}, n = 0;
+  rows.forEach(function(r, i){
+    var v = String(r.vehicle||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+    var b = String(r.bill||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+    var k = (v || b) ? v + '|' + b : 'row' + i;
+    if (!seen[k]) { seen[k] = 1; n++; }
+  });
+  return n;
+}
 function nkg(v){ return Math.round(v).toLocaleString('en-IN'); }
 function sumKg(a){ return a.reduce(function(t,r){return t+(r.kg||0);},0); }
 
@@ -2833,7 +2844,7 @@ function renderDailyDis() {
 
   h += '<div style="padding:14px 20px 0"><div class="kpi-grid">'
     + kpi('Total Dispatched', ni(totalQty),               '', '#E8A020', '📦')
-    + kpi('Trips',            rows.length,                '', '#1A6FC4', '🚛')
+    + kpi('Trips',            tripCount(rows),            '', '#1A6FC4', '🚛')
     + kpi('Parties',          Object.keys(parties).length,'', '#0F9E6E', '🤝')
     + '</div></div>';
 
@@ -2852,7 +2863,7 @@ function renderDailyDis() {
   h += '<div class="sbar">'
     + '<input class="srch" placeholder="Search party · product · bill…" '
     + 'value="' + esc(S.qDis) + '" oninput="S.qDis=this.value;render()"/>'
-    + '<span class="rec-badge">' + rows.length + ' trip' + (rows.length!==1?'s':'') + '</span></div>';
+    + '<span class="rec-badge">' + tripCount(rows) + ' trip' + (tripCount(rows)!==1?'s':'') + ' · ' + rows.length + ' lines</span></div>';
 
   h += '<div class="tw">';
   if (!rows.length) {
@@ -2935,7 +2946,7 @@ function renderMonthlyDis() {
   h += '<div style="padding:14px 20px 0"><div class="kpi-grid">'
     + kpi('Total Dispatched', ni(grand),               '',  '#E8A020', '📦')
     + kpi('Parties',          Object.keys(byParty).length,'','#0F9E6E', '🤝')
-    + kpi('Trips',            rows.length,             '',  '#1A6FC4', '🚛')
+    + kpi('Trips',            tripCount(rows),         '',  '#1A6FC4', '🚛')
     + '</div></div>';
 
   if (!rows.length) {
@@ -2978,7 +2989,7 @@ function renderMonthlyDis() {
     h += '<tr class="gr-head" onclick="S.xDis[\'' + safeP + '\']=!S.xDis[\'' + safeP + '\'];render()">'
       + '<td><span style="color:var(--gold);margin-right:8px;font-size:10px">'
       + (openP?'▾':'▸') + '</span><strong>' + esc(party) + '</strong></td>'
-      + '<td class="td-muted" style="text-align:right">' + pr.length + '</td>'
+      + '<td class="td-muted" style="text-align:right">' + tripCount(pr) + '</td>'
       + '<td class="td-gold">' + ni(pt) + '</td>'
       + '<td style="text-align:right;vertical-align:middle">'
       + '<span style="font-size:11px;color:var(--ink-mid)">' + pct.toFixed(1) + '%</span>'
@@ -2997,7 +3008,7 @@ function renderMonthlyDis() {
       h += '<tr class="gr-head2" onclick="S.xDis[\'' + safeM + '\']=!S.xDis[\'' + safeM + '\'];render()">'
         + '<td style="padding-left:30px!important"><span style="color:var(--blue);margin-right:6px;font-size:10px">'
         + (openM?'▾':'▸') + '</span><span class="mach">' + esc(mac) + '</span></td>'
-        + '<td class="td-muted" style="text-align:right">' + mr.length + '</td>'
+        + '<td class="td-muted" style="text-align:right">' + tripCount(mr) + '</td>'
         + '<td class="td-blue">' + ni(mt) + '</td>'
         + '<td style="text-align:right;font-size:11px;color:var(--ink-lt)">'
         + (grand?(mt/grand*100).toFixed(1):0) + '%</td></tr>';
@@ -3018,7 +3029,7 @@ function renderMonthlyDis() {
         h += '<tr class="gr-sub" style="cursor:pointer" onclick="S.xDis[\'' + safePr + '\']=!S.xDis[\'' + safePr + '\'];render()">'
           + '<td style="padding-left:52px!important"><span style="color:var(--green);margin-right:6px;font-size:9px">'
           + (openPr?'▾':'▸') + '</span>' + esc(prod) + '</td>'
-          + '<td class="td-muted" style="text-align:right">' + prodRows.length + '</td>'
+          + '<td class="td-muted" style="text-align:right">' + tripCount(prodRows) + '</td>'
           + '<td class="td-num">' + ni(prdQ) + '</td>'
           + '<td style="text-align:right;font-size:10px;color:var(--ink-lt)">'
           + (grand?(prdQ/grand*100).toFixed(1):0) + '%</td></tr>';
@@ -3029,9 +3040,9 @@ function renderMonthlyDis() {
         var varMap = {};
         prodRows.forEach(function(r) {
           var vk = (r.color||'—') + '§' + (r.thickness||'—');
-          if (!varMap[vk]) varMap[vk] = {qty:0, trips:0, color:r.color, thickness:r.thickness};
+          if (!varMap[vk]) varMap[vk] = {qty:0, rows:[], color:r.color, thickness:r.thickness};
           varMap[vk].qty   += parseFloat(r.qty) || 0;
-          varMap[vk].trips += 1;
+          varMap[vk].rows.push(r);
         });
         Object.keys(varMap)
           .sort(function(a,b){return varMap[b].qty - varMap[a].qty;})
@@ -3041,7 +3052,7 @@ function renderMonthlyDis() {
               + '<td style="padding-left:70px!important">' + cpill(vd.color)
               + '<span style="margin-left:8px;font-size:11px;color:var(--ink-lt);font-style:italic">'
               + esc(vd.thickness) + '</span></td>'
-              + '<td class="td-muted" style="text-align:right;font-size:11px">' + vd.trips + '</td>'
+              + '<td class="td-muted" style="text-align:right;font-size:11px">' + tripCount(vd.rows) + '</td>'
               + '<td class="td-num" style="font-size:12px">' + ni(vd.qty) + '</td>'
               + '<td style="text-align:right;font-size:10px;color:var(--slate-mid)">'
               + (grand?(vd.qty/grand*100).toFixed(1):0) + '%</td></tr>';
@@ -3051,7 +3062,7 @@ function renderMonthlyDis() {
   });
 
   h += '<tr class="gr-total"><td>Grand Total</td>'
-    + '<td class="td-num" style="text-align:right">' + rows.length + '</td>'
+    + '<td class="td-num" style="text-align:right">' + tripCount(rows) + '</td>'
     + '<td class="td-gold">' + ni(grand) + '</td>'
     + '<td style="text-align:right;font-size:10px;color:var(--ink-lt)">100%</td></tr>';
   h += '</tbody></table></div></div>';
