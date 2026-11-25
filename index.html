@@ -967,6 +967,7 @@ details .inner {
     <button class="top-nav-btn" data-tab="pr" onclick="switchTab(this)"><span class="nb-icon">⚙</span>Production</button>
     <button class="top-nav-btn" data-tab="st" onclick="switchTab(this)"><span class="nb-icon">▦</span>Stock</button>
     <button class="top-nav-btn" data-tab="au" onclick="switchTab(this)"><span class="nb-icon">✎</span>AU Entry</button>
+    <button class="top-nav-btn" data-tab="tr" onclick="switchTab(this)"><span class="nb-icon">🧪</span>Testing Results</button>
     <button class="top-nav-btn" data-tab="dbg" onclick="switchTab(this)"><span class="nb-icon">🔍</span>Debug</button>
   </nav>
 </div>
@@ -984,6 +985,7 @@ details .inner {
   <button class="bot-btn" data-tab="pr" onclick="switchTab(this)"><span class="bi">⚙</span>Prod</button>
   <button class="bot-btn" data-tab="st" onclick="switchTab(this)"><span class="bi">▦</span>Stock</button>
   <button class="bot-btn" data-tab="au" onclick="switchTab(this)"><span class="bi">✎</span>AU</button>
+  <button class="bot-btn" data-tab="tr" onclick="switchTab(this)"><span class="bi">🧪</span>Test</button>
   <button class="bot-btn" data-tab="dbg" onclick="switchTab(this)"><span class="bi">🔍</span>Debug</button>
 </nav>
 
@@ -1342,6 +1344,8 @@ async function bootstrapConfig() {
       inwardSheetId:     remote.inwardSheetId     || (local && local.inwardSheetId)     || '',
       dispatchSheetId:   remote.dispatchSheetId   || (local && local.dispatchSheetId)   || '',
       productionSheetId: remote.productionSheetId || (local && local.productionSheetId) || '',
+      testingSheetId:    remote.testingSheetId    || (local && local.testingSheetId)    || '',
+      testingTab:        remote.testingTab        || (local && local.testingTab)        || 'Testing',
     };
   } else if (local) {
     // config.json unavailable — use localStorage (offline or first setup)
@@ -1353,6 +1357,7 @@ async function bootstrapConfig() {
 
   // productionTab always computed from today — never configured manually
   cfg.productionTab = AUTO_PROD_TAB;
+  cfg.testingTab    = cfg.testingTab || 'Testing';
 
   // Log what we ended up with for debugging
   console.info('[Helix] Final config:', {
@@ -1441,6 +1446,11 @@ var S = {
   mdYear:  today.getFullYear(),
   mdMonth: today.getMonth() + 1,
   xDis: {},                   // Expanded keys (party/machine/product)
+
+  // ── Testing Results state ──
+  testing: [], testingLoaded: false,
+  trYear:  today.getFullYear(),
+  trMonth: today.getMonth() + 1,
 
   // ── Production state ──
   xMac: null,                 // Currently open machine accordion
@@ -2273,6 +2283,7 @@ async function loadData() {
     // Stock and AU sheet IDs are hardcoded in GAS — always the same sheets
     fetchTab(url, 'stock',      AUTO_PROD_TAB,       ''),
     fetchTab(url, 'au_read',    '',                  ''),
+    S.cfg.testingSheetId ? fetchTab(url, 'testing', S.cfg.testingTab, S.cfg.testingSheetId) : Promise.resolve(null),
   ]);
 
   if (res[0].status === 'fulfilled') {
@@ -2321,6 +2332,15 @@ async function loadData() {
   } else {
     S.auEntries = [];
     S.auLoaded  = false;
+  }
+
+  if (res[5].status === 'fulfilled' && res[5].value) {
+    S.testing       = res[5].value.map(normalTest);
+    S.testingLoaded = true;
+  } else {
+    S.testing       = [];
+    S.testingLoaded = false;
+    if (res[5].status === 'rejected') errs.testing = res[5].reason ? res[5].reason.message : 'Could not load Testing data';
   }
 
   S.errors      = errs;
@@ -2374,9 +2394,10 @@ function datePicker(isoVal, stateKey, todayISO) {
     +'<span class="picker-disp">'+esc(isoToFmt(isoVal))+'</span>'
     +'</div>';
 }
+function pickerLookback(yrKey){ return yrKey==='trYear' ? 60 : 2; }
 function monthPicker(year, month, yrKey, moKey) {
   var currY=today.getFullYear(),currM=today.getMonth()+1;
-  var minDate=monthsAgo(today,2),minY=minDate.getFullYear(),minM=minDate.getMonth()+1;
+  var minDate=monthsAgo(today,pickerLookback(yrKey)),minY=minDate.getFullYear(),minM=minDate.getMonth()+1;
   var atMin=(year===minY&&month===minM)||(year<minY)||(year===minY&&month<minM);
   var atMax=(year===currY&&month===currM);
   var displayD=new Date(year,month-1,1);
@@ -2399,7 +2420,7 @@ function shiftMonth(yrKey,moKey,n){
   var y=S[yrKey],m=S[moKey]+n;
   if(m>12){m=1;y++;}if(m<1){m=12;y--;}
   var currY=today.getFullYear(),currM=today.getMonth()+1;
-  var minD=monthsAgo(today,2),minY=minD.getFullYear(),minM=minD.getMonth()+1;
+  var minD=monthsAgo(today,pickerLookback(yrKey)),minY=minD.getFullYear(),minM=minD.getMonth()+1;
   if(y<minY||(y===minY&&m<minM))return;
   if(y>currY||(y===currY&&m>currM))return;
   S[yrKey]=y;S[moKey]=m;render();
@@ -2444,6 +2465,7 @@ function render() {
   else if (S.tab==='pr') h+=renderProd();
   else if (S.tab==='st') h+=renderStock();
   else if (S.tab==='au')  h+=renderAuEntry();
+  else if (S.tab==='tr') h+=renderTesting();
   else if (S.tab==='dbg') h+=renderDebug();
 
   pg.innerHTML=h;
@@ -2725,6 +2747,113 @@ function renderDailyIn() {
   h += '</div></div>';
   return h;
 }
+
+// ── TESTING RESULTS ──────────────────────────────────────────────────
+/** Any date text (D/M/YYYY, D-M-YYYY, "05 Feb 2026", ISO) -> "DD MMM YYYY" */
+function anyDateToFmt(v) {
+  var t = String(v == null ? '' : v).trim();
+  if (!t) return '';
+  var m = t.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+  if (m) {
+    var yy = parseInt(m[3],10); if (yy < 100) yy += 2000;
+    var mo = parseInt(m[2],10), dd = parseInt(m[1],10);
+    if (mo>=1 && mo<=12) return (dd<10?'0':'')+dd+' '+MONTHS_SHORT[mo-1]+' '+yy;
+  }
+  m = t.match(/^(\d{1,2})\s+([A-Za-z]{3})[a-z]*\s+(\d{4})/);
+  if (m) {
+    var idx = MONTHS_SHORT.findIndex(function(x){return x.toLowerCase()===m[2].toLowerCase();});
+    if (idx>=0) { var d2=parseInt(m[1],10); return (d2<10?'0':'')+d2+' '+MONTHS_SHORT[idx]+' '+m[3]; }
+  }
+  m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[3]+' '+MONTHS_SHORT[parseInt(m[2],10)-1]+' '+m[1];
+  return t;
+}
+function dateSortKey(f) {
+  var m = String(f||'').match(/^(\d{2}) (\w{3}) (\d{4})$/);
+  if (!m) return 0;
+  return parseInt(m[3],10)*10000 + (MONTHS_SHORT.indexOf(m[2])+1)*100 + parseInt(m[1],10);
+}
+function normalTest(r) {
+  var lc = {};
+  Object.keys(r).forEach(function(k){ lc[k.toLowerCase().replace(/[^a-z]/g,'')] = r[k]; });
+  function pick() {
+    for (var i=0;i<arguments.length;i++){ var v = lc[arguments[i]]; if (v!==undefined && v!==null && v!=='') return v; }
+    return '';
+  }
+  function num(v){ var n = parseFloat(String(v).replace(/,/g,'')); return isNaN(n) ? null : n; }
+  return {
+    machine:   String(pick('machinename','machine')),
+    product:   String(pick('productname','product')),
+    thickness: String(pick('thickness')),
+    dom:       anyDateToFmt(pick('dateofmanufacturing','dom','manufacturingdate')),
+    dot:       anyDateToFmt(pick('dateoftesting','dot','testingdate')),
+    reading:   num(pick('reading')),
+    comp:      num(pick('compstrength','compressivestrength')),
+    compCorr:  num(pick('compstrengthwithcorrection','compressivestrengthwithcorrection')),
+  };
+}
+function fx(v, d) { return v === null || v === undefined ? '—' : (+v).toLocaleString('en-IN', {minimumFractionDigits:d, maximumFractionDigits:d}); }
+
+function renderTesting() {
+  var displayD = new Date(S.trYear, S.trMonth-1, 1);
+  var h = '<div class="card">';
+  h += '<div class="card-head">' + secTitle('Testing Results — by Date of Manufacturing')
+    + '<span class="chip chip-month">' + fmtMonth(displayD) + '</span></div>';
+  h += monthPicker(S.trYear, S.trMonth, 'trYear', 'trMonth');
+
+  if (!S.cfg.testingSheetId) {
+    h += pendingNotice('Testing Sheet Not Configured',
+      'Add "testingSheetId" (and "testingTab" if the tab is not named Testing) to config.json on GitHub, then refresh.');
+    return h + '</div>';
+  }
+  if (!S.testingLoaded) {
+    h += pendingNotice('Testing Data Not Available',
+      (S.errors && S.errors.testing ? esc(S.errors.testing) + ' — ' : '') + 'Please refresh or check the sheet ID / tab name in config.json.');
+    return h + '</div>';
+  }
+
+  var rows = S.testing.filter(function(r){ return dateInMonth(r.dom, S.trYear, S.trMonth); });
+  rows.sort(function(a,b){
+    return (dateSortKey(b.dom) - dateSortKey(a.dom))
+        || a.machine.localeCompare(b.machine)
+        || a.product.localeCompare(b.product);
+  });
+
+  var cc = rows.map(function(r){return r.compCorr;}).filter(function(v){return v!==null;});
+  var avg = cc.length ? cc.reduce(function(t,v){return t+v;},0)/cc.length : null;
+  h += '<div style="padding:14px 20px 0"><div class="kpi-grid">'
+    + kpi('Tests',          rows.length,                          '', '#1A6FC4', '🧪')
+    + kpi('Avg Strength (Corrected)', fx(avg,2),                  '', '#0F9E6E', '📊')
+    + kpi('Min / Max (Corrected)', cc.length ? fx(Math.min.apply(null,cc),2)+' / '+fx(Math.max.apply(null,cc),2) : '—', '', '#E8A020', '↕')
+    + '</div></div>';
+
+  h += '<div class="tw" style="margin-top:8px">';
+  if (!rows.length) {
+    h += '<div class="empty"><span class="empty-ico">🧪</span>No tests with a Date of Manufacturing in <strong>'
+      + fmtMonth(displayD) + '</strong><br><span style="font-size:12px">Use the month picker above to view another month.</span></div>';
+  } else {
+    h += '<table><thead><tr>'
+      + '<th>Machine Name</th><th>Product Name</th><th>Thickness</th>'
+      + '<th>Date of Manufacturing</th><th>Date of Testing</th>'
+      + '<th class="r">Reading</th><th class="r">Comp Strength</th><th class="r">Comp. Strength with Correction</th>'
+      + '</tr></thead><tbody>';
+    rows.forEach(function(r){
+      h += '<tr>'
+        + '<td class="td-bold">' + esc(r.machine) + '</td>'
+        + '<td>' + esc(r.product) + '</td>'
+        + '<td class="td-muted">' + esc(r.thickness) + '</td>'
+        + '<td class="td-muted">' + esc(r.dom) + '</td>'
+        + '<td class="td-muted">' + esc(r.dot) + '</td>'
+        + '<td class="td-num">' + fx(r.reading,2) + '</td>'
+        + '<td class="td-num">' + fx(r.comp,2) + '</td>'
+        + '<td class="td-green">' + fx(r.compCorr,2) + '</td></tr>';
+    });
+    h += '</tbody></table>';
+  }
+  h += '</div></div>';
+  return h;
+}
+
 
 // ── 2. MONTHLY INWARD ────────────────────────────────────────────────
 function renderMonthlyIn() {
@@ -4330,6 +4459,8 @@ function saveAndConnect() {
     inwardSheetId:     S.cfg.inwardSheetId     || '',
     dispatchSheetId:   S.cfg.dispatchSheetId   || '',
     productionSheetId: S.cfg.productionSheetId || '',
+    testingSheetId:    S.cfg.testingSheetId    || '',
+    testingTab:        S.cfg.testingTab        || 'Testing',
   };
   S.cfg = cfg;
   saveLocalConfig(cfg);
