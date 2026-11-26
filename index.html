@@ -330,11 +330,6 @@ html, body {
 }
 
 
-/* ── TABLES: everything centred (tree/indented label cells stay left so the hierarchy reads) ── */
-table th, table td { text-align: center !important; vertical-align: middle; }
-table td[style*="padding-left"] { text-align: left !important; }
-table td .mbar, table td [class*="bar"] { margin-left: auto; margin-right: auto; }
-
 /* ── CARD ─────────────────────────────────────────── */
 .card {
   background: var(--card);
@@ -3364,6 +3359,70 @@ function renderElectricity() {
 }
 
 
+// ── TABLE ALIGNMENT: text columns left, number columns centred ───────
+(function(){
+  var NUM = /^[+\-−]?\d[\d,]*(\.\d+)?\s*(%|kg)?$/i;
+  var FORCE_LEFT = /bill|challan|vehicle|date|time|machine|supplier|party|product|material|name|thickness|make|colour|color|grade|remark|mould/i;
+  function isNum(t){ t = (t||'').trim(); return NUM.test(t); }
+  function isBlank(t){ t = (t||'').trim(); return t === '' || t === '—' || t === '–' || t === '-'; }
+  function alignTable(tb) {
+    var colNum = [], colTxt = [], hdrText = [];
+    var rows = tb.rows, i, j, c, ci;
+    // header text per column
+    for (i = 0; i < rows.length; i++) {
+      if (rows[i].parentNode.tagName === 'THEAD') {
+        ci = 0;
+        for (j = 0; j < rows[i].cells.length; j++) {
+          c = rows[i].cells[j]; hdrText[ci] = (hdrText[ci] ? hdrText[ci] + ' ' : '') + c.textContent; ci += c.colSpan || 1;
+        }
+      }
+    }
+    // body stats
+    for (i = 0; i < rows.length; i++) {
+      if (rows[i].parentNode.tagName === 'THEAD') continue;
+      ci = 0;
+      for (j = 0; j < rows[i].cells.length; j++) {
+        c = rows[i].cells[j];
+        if ((c.colSpan || 1) === 1 && !isBlank(c.textContent)) {
+          if (isNum(c.textContent)) colNum[ci] = (colNum[ci] || 0) + 1; else colTxt[ci] = (colTxt[ci] || 0) + 1;
+        }
+        ci += c.colSpan || 1;
+      }
+    }
+    function align(col) {
+      if (col === 0) return 'left';
+      if (FORCE_LEFT.test(hdrText[col] || '')) return 'left';
+      return (colNum[col] || 0) > (colTxt[col] || 0) ? 'center' : 'left';
+    }
+    for (i = 0; i < rows.length; i++) {
+      ci = 0;
+      for (j = 0; j < rows[i].cells.length; j++) {
+        c = rows[i].cells[j];
+        var a = ((c.colSpan || 1) > 1) ? 'left' : align(ci);
+        if (c.style.textAlign !== a || c.style.getPropertyPriority('text-align') !== 'important') c.style.setProperty('text-align', a, 'important');
+        ci += c.colSpan || 1;
+      }
+    }
+  }
+  function alignAll() {
+    var pg = document.getElementById('page'); if (!pg) return;
+    obs.disconnect();
+    var t = pg.getElementsByTagName('table');
+    for (var k = 0; k < t.length; k++) { try { alignTable(t[k]); } catch(e){} }
+    obs.observe(pg, { childList: true, subtree: true });
+  }
+  var pending = false;
+  var obs = new MutationObserver(function(){
+    if (pending) return; pending = true;
+    requestAnimationFrame(function(){ pending = false; alignAll(); });
+  });
+  document.addEventListener('DOMContentLoaded', function(){
+    var pg = document.getElementById('page');
+    if (pg) { obs.observe(pg, { childList: true, subtree: true }); alignAll(); }
+  });
+})();
+
+
 // ── 2. MONTHLY INWARD ────────────────────────────────────────────────
 function renderMonthlyIn() {
   var displayD = new Date(S.miYear, S.miMonth-1, 1);
@@ -5068,7 +5127,7 @@ if ('serviceWorker' in navigator) {
 }
 
 // Auto-refresh live data every 5 minutes
-setInterval(function(){ if (S.isLive) loadData(); }, 10 * 60 * 1000);
+setInterval(function(){ if (S.isLive) loadData(); }, 5 * 60 * 1000);
 
 // Show a loading state immediately while config.json is being fetched
 // bootstrapConfig() will call updateHeader() + render() once config is ready
