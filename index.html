@@ -329,6 +329,12 @@ html, body {
   box-sizing: border-box;
 }
 
+
+/* ── TABLES: everything centred (tree/indented label cells stay left so the hierarchy reads) ── */
+table th, table td { text-align: center !important; vertical-align: middle; }
+table td[style*="padding-left"] { text-align: left !important; }
+table td .mbar, table td [class*="bar"] { margin-left: auto; margin-right: auto; }
+
 /* ── CARD ─────────────────────────────────────────── */
 .card {
   background: var(--card);
@@ -5061,7 +5067,7 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// Auto-refresh live data every 10 minutes
+// Auto-refresh live data every 5 minutes
 setInterval(function(){ if (S.isLive) loadData(); }, 10 * 60 * 1000);
 
 // Show a loading state immediately while config.json is being fetched
