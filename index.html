@@ -969,6 +969,7 @@ details .inner {
     <button class="top-nav-btn" data-tab="au" onclick="switchTab(this)"><span class="nb-icon">✎</span>AU Entry</button>
     <button class="top-nav-btn" data-tab="tr" onclick="switchTab(this)"><span class="nb-icon">🧪</span>Testing Results</button>
     <button class="top-nav-btn" data-tab="mo" onclick="switchTab(this)"><span class="nb-icon">⚒</span>Mould</button>
+    <button class="top-nav-btn" data-tab="el" onclick="switchTab(this)"><span class="nb-icon">⚡</span>Electricity</button>
     <button class="top-nav-btn" data-tab="dbg" onclick="switchTab(this)"><span class="nb-icon">🔍</span>Debug</button>
   </nav>
 </div>
@@ -988,6 +989,7 @@ details .inner {
   <button class="bot-btn" data-tab="au" onclick="switchTab(this)"><span class="bi">✎</span>AU</button>
   <button class="bot-btn" data-tab="tr" onclick="switchTab(this)"><span class="bi">🧪</span>Test</button>
   <button class="bot-btn" data-tab="mo" onclick="switchTab(this)"><span class="bi">⚒</span>Mould</button>
+  <button class="bot-btn" data-tab="el" onclick="switchTab(this)"><span class="bi">⚡</span>Power</button>
   <button class="bot-btn" data-tab="dbg" onclick="switchTab(this)"><span class="bi">🔍</span>Debug</button>
 </nav>
 
@@ -1452,6 +1454,9 @@ var S = {
   // ── Testing Results state ──
   testing: [], testingLoaded: false,
   mould: [], mouldLoaded: false, qMo: '',
+  elMeter: [], elSolar: [], elLoaded: false,
+  elYear:  today.getFullYear(),
+  elMonth: today.getMonth() + 1,
   trYear:  today.getFullYear(),
   trMonth: today.getMonth() + 1,
 
@@ -1509,6 +1514,8 @@ var GAS_CODE = [
 'var STOCK_SHEET_ID = "1KXkWqKee_4TW0NR7MOSkncRO5xjz_NksD6d48tx9ZB4";',
 'var AU_SHEET_ID    = "1AspDx-HFNHw02Zac_a8dGvoO8xGCao4Kb-3rEgeoxYU";',
 '// Mould tab lives in the Inward / Combined workbook (production data is read from STOCK_SHEET_ID)',
+'// Electricity (Solar + Meter tabs) workbook',
+'var ELEC_SHEET_ID  = "1c0XXG6upofIH-tDLLA2E4eWJw85Pi1jSF1q9-lPAbFc";',
 'var MOULD_SHEET_ID = "18w70HWWrSCXQ9pmM2g3ceiDf0n6drWt0ARUiC-8EwHU";',
 '',
 '/**',
@@ -1572,7 +1579,9 @@ var GAS_CODE = [
 '    // Sheet IDs: prefer param.sheetId (from dashboard config.json),',
 '    // fall back to hardcoded constants for stock/au which never change.',
 '    var sheetId;',
-'    if (register === "mould") {',
+'    if (register === "elec_meter" || register === "elec_solar") {',
+'      sheetId = ELEC_SHEET_ID;',
+'    } else if (register === "mould") {',
 '      sheetId = MOULD_SHEET_ID;',
 '    } else if (register === "stock") {',
 '      sheetId = STOCK_SHEET_ID;',
@@ -2520,6 +2529,9 @@ async function loadData() {
     S.cfg.testingSheetId ? fetchTab(url, 'testing', S.cfg.testingTab, S.cfg.testingSheetId) : Promise.resolve(null),
     // Mould tab lives in the Inward/Combined workbook (ID hardcoded in GAS)
     fetchTab(url, 'mould',      'Mould',             ''),
+    // Electricity workbook ID is hardcoded in GAS
+    fetchTab(url, 'elec_meter', 'Meter',             ''),
+    fetchTab(url, 'elec_solar', 'Solar',             ''),
   ]);
 
   if (res[0].status === 'fulfilled') {
@@ -2588,6 +2600,16 @@ async function loadData() {
     errs.mould    = res[6].reason ? res[6].reason.message : 'Could not load Mould data';
   }
 
+  if (res[7].status === 'fulfilled' && res[8].status === 'fulfilled') {
+    S.elMeter  = res[7].value.map(normalMeter);
+    S.elSolar  = res[8].value.map(normalSolar);
+    S.elLoaded = true;
+  } else {
+    S.elMeter = []; S.elSolar = []; S.elLoaded = false;
+    var er = res[7].status === 'rejected' ? res[7] : res[8];
+    errs.electricity = er.reason ? er.reason.message : 'Could not load Electricity data';
+  }
+
   S.errors      = errs;
   S.isLive      = S.inwardLoaded || S.dispatchLoaded || S.productionLoaded || S.stockLoaded;
   S.lastRefresh = new Date();
@@ -2639,7 +2661,7 @@ function datePicker(isoVal, stateKey, todayISO) {
     +'<span class="picker-disp">'+esc(isoToFmt(isoVal))+'</span>'
     +'</div>';
 }
-function pickerLookback(yrKey){ return yrKey==='trYear' ? 60 : 2; }
+function pickerLookback(yrKey){ return (yrKey==='trYear' || yrKey==='elYear') ? 60 : 2; }
 function monthPicker(year, month, yrKey, moKey) {
   var currY=today.getFullYear(),currM=today.getMonth()+1;
   var minDate=monthsAgo(today,pickerLookback(yrKey)),minY=minDate.getFullYear(),minM=minDate.getMonth()+1;
@@ -2712,6 +2734,7 @@ function render() {
   else if (S.tab==='au')  h+=renderAuEntry();
   else if (S.tab==='tr') h+=renderTesting();
   else if (S.tab==='mo') h+=renderMould();
+  else if (S.tab==='el') h+=renderElectricity();
   else if (S.tab==='dbg') h+=renderDebug();
 
   pg.innerHTML=h;
@@ -3176,6 +3199,112 @@ function renderMould() {
   }
   h += '</div></div>';
   return h;
+}
+
+
+// ── ELECTRICITY ──────────────────────────────────────────────────────
+function normalMeter(r) {
+  var lc = {};
+  Object.keys(r).forEach(function(k){ lc[k.toLowerCase().replace(/[^a-z]/g,'')] = r[k]; });
+  function num(v){ if (v===''||v===undefined||v===null) return null; var n = parseFloat(String(v).replace(/,/g,'')); return isNaN(n) ? null : n; }
+  return {
+    date:   anyDateToFmt(lc['date']),
+    time:   String(lc['time'] || ''),
+    imp:    num(lc['importkwh']),
+    exp:    num(lc['exportkwh']),
+    net:    num(lc['netkwh']),
+    solar:  num(lc['solarkwh']),
+  };
+}
+function normalSolar(r) {
+  var lc = {};
+  Object.keys(r).forEach(function(k){ lc[k.toLowerCase().replace(/[^a-z]/g,'')] = r[k]; });
+  var u = parseFloat(String(lc['units']).replace(/,/g,''));
+  return { date: anyDateToFmt(lc['date']), working: String(lc['workingyn'] || ''), units: isNaN(u) ? null : u };
+}
+/** key "YYYYMMDD" for a Date */
+function dkey(d) { return d.getFullYear()*10000 + (d.getMonth()+1)*100 + d.getDate(); }
+function fmtDay(d) { return (d.getDate()<10?'0':'') + d.getDate() + ' ' + MONTHS_SHORT[d.getMonth()] + ' ' + d.getFullYear(); }
+
+function renderElectricity() {
+  var y = S.elYear, m = S.elMonth, displayD = new Date(y, m-1, 1);
+  var h = '<div class="card">';
+  h += '<div class="card-head">' + secTitle('Electricity — Solar & Grid Meter')
+    + '<span class="chip chip-month">' + fmtMonth(displayD) + '</span></div>';
+  h += monthPicker(y, m, 'elYear', 'elMonth');
+
+  if (!S.elLoaded) {
+    h += pendingNotice('Electricity Data Not Available',
+      (S.errors && S.errors.electricity ? esc(S.errors.electricity) + ' — ' : '')
+      + 'Redeploy the Apps Script (New deployment), update the URL in config.json and refresh.');
+    return h + '</div>';
+  }
+
+  // Lookups by date (last entry of a day wins)
+  var meter = {}, solar = {};
+  S.elMeter.forEach(function(r){ if (r.date) meter[dateSortKey(r.date)] = r; });
+  S.elSolar.forEach(function(r){ if (r.date) solar[dateSortKey(r.date)] = r; });
+  function mAt(d) { return meter[dkey(d)] || null; }
+
+  var days = new Date(y, m, 0).getDate();
+  var todayKey = dkey(today);
+
+  // ── Daily table ──
+  h += '<div class="tw" style="margin-top:8px"><table><thead><tr>'
+    + '<th>Date</th><th class="r">Import (Kwh)</th><th class="r">Export (Kwh)</th><th class="r">Net (Kwh)</th>'
+    + '<th class="r">Solar (Kwh)</th><th class="r">Actual Units</th><th class="r">Calculated Units</th>'
+    + '</tr></thead><tbody>';
+  var totAct = 0, totCalc = 0;
+  for (var d = 1; d <= days; d++) {
+    var dt = new Date(y, m-1, d), nx = new Date(y, m-1, d+1);
+    var mr = mAt(dt), mn = mAt(nx), sr = solar[dkey(dt)];
+    var calc = (mr && mn && mr.solar !== null && mn.solar !== null) ? (mn.solar - mr.solar) * 20 : null;
+    var act  = sr ? sr.units : null;
+    if (act  !== null) totAct  += act;
+    if (calc !== null) totCalc += calc;
+    var future = dkey(dt) > todayKey;
+    h += '<tr' + (future ? ' style="opacity:.45"' : '') + '>'
+      + '<td class="td-bold">' + esc(fmtDay(dt)) + '</td>'
+      + '<td class="td-num">' + (mr ? fx(mr.imp,2)   : '—') + '</td>'
+      + '<td class="td-num">' + (mr ? fx(mr.exp,2)   : '—') + '</td>'
+      + '<td class="td-num">' + (mr ? fx(mr.net,2)   : '—') + '</td>'
+      + '<td class="td-num">' + (mr ? fx(mr.solar,2) : '—') + '</td>'
+      + '<td class="td-green">' + fx(act,2) + '</td>'
+      + '<td class="td-gold">'  + fx(calc,2) + '</td></tr>';
+  }
+  h += '<tr class="gr-total"><td colspan="5">Month Total</td>'
+    + '<td class="td-green">' + fx(totAct,2) + '</td><td class="td-gold">' + fx(totCalc,2) + '</td></tr>';
+  h += '</tbody></table></div>';
+
+  // ── Monthly calculation ──
+  var first = mAt(new Date(y, m-1, 1));
+  var nextFirst = mAt(new Date(y, m, 1));
+  var end = nextFirst, endLabel = '1st of next month', provisional = false;
+  if (!nextFirst) {
+    // Month still running: use the latest reading available inside this month
+    for (var dd = days; dd >= 1; dd--) { var t = mAt(new Date(y, m-1, dd)); if (t) { end = t; endLabel = 'latest reading (' + t.date + ')'; break; } }
+    provisional = true;
+  }
+  h += '<div style="padding:16px 20px 4px">' + secTitle('Monthly Calculation — ' + fmtMonth(displayD)) + '</div>';
+  if (!first || !end || end === first) {
+    h += '<div style="padding:0 20px 18px;font-size:13px;color:var(--ink-mid)">'
+      + 'Needs the meter readings dated the 1st of ' + fmtMonth(displayD) + ' and the 1st of the next month.</div>';
+  } else {
+    function dif(a, b) { return (a === null || b === null) ? null : b - a; }
+    var A = dif(first.imp, end.imp), B = dif(first.exp, end.exp);
+    var netU = (A === null || B === null) ? null : (A - B) * 3;
+    var solU = dif(first.solar, end.solar); solU = solU === null ? null : solU * 20;
+    h += '<div class="tw"><table><thead><tr>'
+      + '<th>Imported Units (A)</th><th>Exported Units (B)</th><th>Net Units (A − B) × 3</th><th>Solar Units × 20</th>'
+      + '</tr></thead><tbody><tr>'
+      + '<td class="td-num">' + fx(A,2) + '</td><td class="td-num">' + fx(B,2) + '</td>'
+      + '<td class="td-gold">' + fx(netU,2) + '</td><td class="td-green">' + fx(solU,2) + '</td></tr></tbody></table></div>';
+    h += '<div style="padding:8px 20px 18px;font-size:11px;color:var(--ink-lt)">'
+      + (provisional ? '⏳ Provisional — the 1st-of-next-month reading is not entered yet, so this runs to the ' + esc(endLabel) + '. '
+                     : 'Based on the readings of the 1st of this month and the 1st of next month. ')
+      + '</div>';
+  }
+  return h + '</div>';
 }
 
 
