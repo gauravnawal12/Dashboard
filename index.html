@@ -238,6 +238,56 @@ html, body {
 .top-nav-btn.active { color: var(--slate); border-bottom-color: var(--gold) }
 .top-nav-btn .nb-icon { font-size: 13px; opacity: .75 }
 
+
+/* ── DESKTOP SIDEBAR (flat list, >768px) ──────────── */
+@media (min-width: 769px) {
+  .top-nav-wrap {
+    position: fixed;
+    top: calc(58px + env(safe-area-inset-top));
+    left: 0; bottom: 0;
+    width: 208px;
+    border-bottom: none;
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    z-index: 150;
+  }
+  .top-nav {
+    flex-direction: column;
+    overflow: visible;
+    max-width: none; margin: 0;
+    padding: 10px 8px 24px;
+    gap: 2px;
+  }
+  .top-nav-btn {
+    width: 100%;
+    padding: 11px 12px;
+    border-bottom: none;
+    border-left: 3px solid transparent;
+    border-radius: 8px;
+    text-align: left;
+  }
+  .top-nav-btn:hover { background: var(--bg, #F4F6F9); }
+  .top-nav-btn.active {
+    background: rgba(232,160,32,.12);
+    border-left-color: var(--gold);
+    color: var(--slate);
+  }
+  .top-nav-btn .nb-icon { width: 20px; text-align: center; font-size: 15px; flex-shrink: 0 }
+  body .page {
+    margin: 0 0 0 208px;
+    width: calc(100% - 208px);
+    max-width: 1500px;
+    padding-bottom: 32px;
+  }
+}
+/* Narrow desktop / small laptop: icon-only sidebar */
+@media (min-width: 769px) and (max-width: 1000px) {
+  .top-nav-wrap { width: 58px }
+  .top-nav-btn { justify-content: center; padding: 12px 0 }
+  .top-nav-btn .nb-label { display: none }
+  body .page { margin-left: 58px; width: calc(100% - 58px) }
+}
+
 /* ── MOBILE BOTTOM NAV ────────────────────────────── */
 .bot-nav {
   display: none;
@@ -959,18 +1009,18 @@ details .inner {
 <!-- ═══ DESKTOP TOP NAV ══════════════════════════════ -->
 <div class="top-nav-wrap" id="top-nav-wrap">
   <nav class="top-nav">
-    <button class="top-nav-btn active" data-tab="ov" onclick="switchTab(this)"><span class="nb-icon">◈</span>Overview</button>
-    <button class="top-nav-btn" data-tab="di" onclick="switchTab(this)"><span class="nb-icon">↓</span>Daily Inward</button>
-    <button class="top-nav-btn" data-tab="mi" onclick="switchTab(this)"><span class="nb-icon">↓↓</span>Monthly Inward</button>
-    <button class="top-nav-btn" data-tab="dd" onclick="switchTab(this)"><span class="nb-icon">↑</span>Daily Dispatch</button>
-    <button class="top-nav-btn" data-tab="md" onclick="switchTab(this)"><span class="nb-icon">↑↑</span>Monthly Dispatch</button>
-    <button class="top-nav-btn" data-tab="pr" onclick="switchTab(this)"><span class="nb-icon">⚙</span>Production</button>
-    <button class="top-nav-btn" data-tab="st" onclick="switchTab(this)"><span class="nb-icon">▦</span>Stock</button>
-    <button class="top-nav-btn" data-tab="au" onclick="switchTab(this)"><span class="nb-icon">✎</span>AU Entry</button>
-    <button class="top-nav-btn" data-tab="tr" onclick="switchTab(this)"><span class="nb-icon">🧪</span>Testing Results</button>
-    <button class="top-nav-btn" data-tab="mo" onclick="switchTab(this)"><span class="nb-icon">⚒</span>Mould</button>
-    <button class="top-nav-btn" data-tab="el" onclick="switchTab(this)"><span class="nb-icon">⚡</span>Electricity</button>
-    <button class="top-nav-btn" data-tab="dbg" onclick="switchTab(this)"><span class="nb-icon">🔍</span>Debug</button>
+    <button class="top-nav-btn active" data-tab="ov" title="Overview" onclick="switchTab(this)"><span class="nb-icon">◈</span><span class="nb-label">Overview</span></button>
+    <button class="top-nav-btn" data-tab="di" title="Daily Inward" onclick="switchTab(this)"><span class="nb-icon">↓</span><span class="nb-label">Daily Inward</span></button>
+    <button class="top-nav-btn" data-tab="mi" title="Monthly Inward" onclick="switchTab(this)"><span class="nb-icon">↓↓</span><span class="nb-label">Monthly Inward</span></button>
+    <button class="top-nav-btn" data-tab="dd" title="Daily Dispatch" onclick="switchTab(this)"><span class="nb-icon">↑</span><span class="nb-label">Daily Dispatch</span></button>
+    <button class="top-nav-btn" data-tab="md" title="Monthly Dispatch" onclick="switchTab(this)"><span class="nb-icon">↑↑</span><span class="nb-label">Monthly Dispatch</span></button>
+    <button class="top-nav-btn" data-tab="pr" title="Production" onclick="switchTab(this)"><span class="nb-icon">⚙</span><span class="nb-label">Production</span></button>
+    <button class="top-nav-btn" data-tab="st" title="Stock" onclick="switchTab(this)"><span class="nb-icon">▦</span><span class="nb-label">Stock</span></button>
+    <button class="top-nav-btn" data-tab="au" title="AU Entry" onclick="switchTab(this)"><span class="nb-icon">✎</span><span class="nb-label">AU Entry</span></button>
+    <button class="top-nav-btn" data-tab="tr" title="Testing Results" onclick="switchTab(this)"><span class="nb-icon">🧪</span><span class="nb-label">Testing Results</span></button>
+    <button class="top-nav-btn" data-tab="mo" title="Mould" onclick="switchTab(this)"><span class="nb-icon">⚒</span><span class="nb-label">Mould</span></button>
+    <button class="top-nav-btn" data-tab="el" title="Electricity" onclick="switchTab(this)"><span class="nb-icon">⚡</span><span class="nb-label">Electricity</span></button>
+    <button class="top-nav-btn" data-tab="dbg" title="Debug" onclick="switchTab(this)"><span class="nb-icon">🔍</span><span class="nb-label">Debug</span></button>
   </nav>
 </div>
 
@@ -5011,8 +5061,8 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// Auto-refresh live data every 5 minutes
-setInterval(function(){ if (S.isLive) loadData(); }, 5 * 60 * 1000);
+// Auto-refresh live data every 10 minutes
+setInterval(function(){ if (S.isLive) loadData(); }, 10 * 60 * 1000);
 
 // Show a loading state immediately while config.json is being fetched
 // bootstrapConfig() will call updateHeader() + render() once config is ready
