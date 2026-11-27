@@ -856,7 +856,7 @@ details .inner {
 }
 .au-head-title {
   font-family: var(--ff-display); font-size: 18px;
-  color: var(--text); margin-bottom: 2px;
+  color: #FFFFFF; margin-bottom: 2px;
 }
 .au-head-sub { font-family: var(--ff-mono); font-size: 9px; color: var(--text3); letter-spacing: 1px }
 .au-body { padding: 22px 22px 14px; display: flex; flex-direction: column; gap: 16px }
@@ -1021,6 +1021,7 @@ details .inner {
     <button class="top-nav-btn" data-tab="tr" title="Testing Results" onclick="switchTab(this)"><span class="nb-icon">🧪</span><span class="nb-label">Testing Results</span></button>
     <button class="top-nav-btn" data-tab="mo" title="Mould" onclick="switchTab(this)"><span class="nb-icon">⚒</span><span class="nb-label">Mould</span></button>
     <button class="top-nav-btn" data-tab="el" title="Electricity" onclick="switchTab(this)"><span class="nb-icon">⚡</span><span class="nb-label">Electricity</span></button>
+    <button class="top-nav-btn" data-tab="ms" title="Miscellaneous" onclick="switchTab(this)"><span class="nb-icon">🗂</span><span class="nb-label">Miscellaneous</span></button>
     <button class="top-nav-btn" data-tab="dbg" title="Debug" onclick="switchTab(this)"><span class="nb-icon">🔍</span><span class="nb-label">Debug</span></button>
   </nav>
 </div>
@@ -1041,6 +1042,7 @@ details .inner {
   <button class="bot-btn" data-tab="tr" onclick="switchTab(this)"><span class="bi">🧪</span>Test</button>
   <button class="bot-btn" data-tab="mo" onclick="switchTab(this)"><span class="bi">⚒</span>Mould</button>
   <button class="bot-btn" data-tab="el" onclick="switchTab(this)"><span class="bi">⚡</span>Power</button>
+  <button class="bot-btn" data-tab="ms" onclick="switchTab(this)"><span class="bi">🗂</span>Misc</button>
   <button class="bot-btn" data-tab="dbg" onclick="switchTab(this)"><span class="bi">🔍</span>Debug</button>
 </nav>
 
@@ -1506,6 +1508,7 @@ var S = {
   testing: [], testingLoaded: false,
   mould: [], mouldLoaded: false, qMo: '',
   elMeter: [], elSolar: [], elLoaded: false,
+  misc: [], miscLoaded: false,
   elYear:  today.getFullYear(),
   elMonth: today.getMonth() + 1,
   trYear:  today.getFullYear(),
@@ -1636,7 +1639,7 @@ var GAS_CODE = [
 '      sheetId = MOULD_SHEET_ID;',
 '    } else if (register === "stock") {',
 '      sheetId = STOCK_SHEET_ID;',
-'    } else if (register === "au_entry" || register === "au_read") {',
+'    } else if (register === "au_entry" || register === "au_read" || register === "misc_read" || register === "misc_add" || register === "misc_delete") {',
 '      sheetId = AU_SHEET_ID;',
 '    } else {',
 '      // Inward, Dispatch, Production — ID comes from config.json via param',
@@ -1647,6 +1650,9 @@ var GAS_CODE = [
 '    var ss = SpreadsheetApp.openById(sheetId);',
 '',
 '    if (register === "au_entry") return writeAuEntry(ss, param);',
+'    if (register === "misc_read")   return readMiscSheet(ss);',
+'    if (register === "misc_add")    return writeMiscEntry(ss, param);',
+'    if (register === "misc_delete") return deleteMiscEntry(ss, param);',
 '    if (register === "au_read")  return readAuSheet(ss);',
 '',
 '    var sheet = ss.getSheetByName(tabName);',
@@ -2309,6 +2315,174 @@ var GAS_CODE = [
 '  ScriptApp.newTrigger("mouldRollover").timeBased().atHour(8).everyDays(1).create();',
 '  Logger.log("Mould triggers created (hourly refresh + daily 8 AM rollover)");',
 '}',
+'',
+'',
+'// ================================================================',
+'// MISCELLANEOUS ENTRIES  (AU workbook, tab "Misc")',
+'// Columns: Timestamp | Date | Entered By | Party Name | Amount | Remarks | ID',
+'// Missing headers are added automatically; the tab is created on the',
+'// first entry if it does not exist. Delete removes the sheet row.',
+'// ================================================================',
+'var MISC_TAB = "Misc";',
+'',
+'function miscNorm_(x) { return String(x || "").toLowerCase().replace(/[^a-z]/g, ""); }',
+'',
+'/** Map headers -> column index (0-based). When addMissing, writes absent headers. */',
+'function miscCols_(sh, addMissing) {',
+'  if (sh.getLastRow() === 0 && addMissing) {',
+'    sh.appendRow(["Timestamp", "Date", "Entered By", "Party Name", "Amount", "Remarks", "ID"]);',
+'    var hr = sh.getRange(1, 1, 1, 7);',
+'    hr.setFontWeight("bold"); hr.setBackground("#1E2D3D"); hr.setFontColor("#FFFFFF");',
+'  }',
+'  var lastCol = Math.max(sh.getLastColumn(), 1);',
+'  var hdr = sh.getRange(1, 1, 1, lastCol).getValues()[0];',
+'  var want = { ts: "timestamp", date: "date", by: "enteredby", party: "partyname", amount: "amount", remarks: "remarks", id: "id" };',
+'  var label = { ts: "Timestamp", date: "Date", by: "Entered By", party: "Party Name", amount: "Amount", remarks: "Remarks", id: "ID" };',
+'  var col = {};',
+'  Object.keys(want).forEach(function(k) { col[k] = -1; });',
+'  for (var c = 0; c < hdr.length; c++) {',
+'    var n = miscNorm_(hdr[c]);',
+'    Object.keys(want).forEach(function(k) { if (n === want[k]) col[k] = c; });',
+'  }',
+'  if (addMissing) {',
+'    Object.keys(want).forEach(function(k) {',
+'      if (col[k] < 0) {',
+'        var nc = sh.getLastColumn() + 1;',
+'        sh.getRange(1, nc).setValue(label[k]).setFontWeight("bold");',
+'        col[k] = nc - 1;',
+'      }',
+'    });',
+'  }',
+'  col.width = Math.max(sh.getLastColumn(), 1);',
+'  return col;',
+'}',
+'',
+'function miscDateKey_(v) {',
+'  if (v instanceof Date) return v.getFullYear() * 10000 + (v.getMonth() + 1) * 100 + v.getDate();',
+'  var MON = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };',
+'  var t = String(v || "").trim();',
+'  var p = t.split(/[ \\/\\-]+/);',
+'  if (p.length < 3) return 0;',
+'  var d = parseInt(p[0], 10), m = MON[String(p[1]).toLowerCase().substring(0, 3)] || parseInt(p[1], 10), y = parseInt(p[2], 10);',
+'  if (isNaN(d) || isNaN(m) || isNaN(y)) return 0;',
+'  return y * 10000 + m * 100 + d;',
+'}',
+'function miscDateStr_(v, tz) {',
+'  if (v instanceof Date) return Utilities.formatDate(v, tz, "dd MMM yyyy");',
+'  return String(v === null || v === undefined ? "" : v);',
+'}',
+'',
+'function readMiscSheet(ss) {',
+'  try {',
+'    var sh = ss.getSheetByName(MISC_TAB);',
+'    if (!sh || sh.getLastRow() < 2) return { data: [], count: 0 };',
+'    var tz   = Session.getScriptTimeZone();',
+'    var col  = miscCols_(sh, false);',
+'    var vals = sh.getDataRange().getValues();',
+'    var data = [];',
+'    function at(row, k) { return col[k] >= 0 && col[k] < row.length ? row[col[k]] : ""; }',
+'    for (var i = 1; i < vals.length; i++) {',
+'      var row = vals[i];',
+'      if (!row.some(function(c) { return c !== "" && c !== null && c !== undefined; })) continue;',
+'      var d = at(row, "date");',
+'      var ts = at(row, "ts");',
+'      data.push({',
+'        row:          i + 1,',
+'        id:           String(at(row, "id") || ""),',
+'        "Timestamp":  miscDateStr_(ts, tz),',
+'        "Date":       miscDateStr_(d, tz),',
+'        "Entered By": String(at(row, "by") || ""),',
+'        "Party Name": String(at(row, "party") || ""),',
+'        "Amount":     at(row, "amount"),',
+'        "Remarks":    String(at(row, "remarks") || ""),',
+'        _key:         miscDateKey_(d)',
+'      });',
+'    }',
+'    data.sort(function(a, b) { return (b._key - a._key) || (b.row - a.row); });',
+'    return { data: data, count: data.length };',
+'  } catch (err) {',
+'    return { error: "readMiscSheet failed: " + err.message };',
+'  }',
+'}',
+'',
+'function writeMiscEntry(ss, param) {',
+'  var lock = LockService.getScriptLock();',
+'  if (!lock.tryLock(30000)) return { error: "Busy - try again" };',
+'  try {',
+'    var enteredBy = String(param.misc_by || "").trim();',
+'    var dateStr   = String(param.misc_date || "").trim();',
+'    if (!enteredBy) return { error: "Entered By is required" };',
+'    if (!dateStr)   return { error: "Date is required" };',
+'    var dk = miscDateKey_(dateStr);',
+'    if (!dk) return { error: "Date not understood: " + dateStr };',
+'',
+'    var tz = Session.getScriptTimeZone();',
+'    var sh = ss.getSheetByName(MISC_TAB) || ss.insertSheet(MISC_TAB);',
+'    var col = miscCols_(sh, true);',
+'    var row = [];',
+'    for (var c = 0; c < col.width; c++) row.push("");',
+'    var id = Utilities.getUuid().substring(0, 8);',
+'    var dt = new Date(Math.floor(dk / 10000), Math.floor((dk % 10000) / 100) - 1, dk % 100);',
+'    row[col.ts]      = Utilities.formatDate(new Date(), tz, "dd MMM yyyy HH:mm:ss");',
+'    row[col.date]    = dt;',
+'    row[col.by]      = enteredBy;',
+'    row[col.party]   = String(param.misc_party || "").trim();',
+'    var amtStr = String(param.misc_amount || "").trim();',
+'    if (amtStr !== "") {',
+'      var amt = Number(amtStr);',
+'      if (isNaN(amt)) return { error: "Amount must be a number" };',
+'      row[col.amount] = amt;',
+'    }',
+'    row[col.remarks] = String(param.misc_remarks || "").trim();',
+'    row[col.id]      = id;',
+'    var target = sh.getLastRow() + 1;',
+'    sh.getRange(target, 1, 1, col.width).setValues([row]);',
+'    sh.getRange(target, col.date + 1).setNumberFormat("dd MMM yyyy");',
+'    if (amtStr !== "") sh.getRange(target, col.amount + 1).setNumberFormat("General");',
+'    SpreadsheetApp.flush();',
+'    return { ok: true, id: id, row: target, msg: "Entry saved (row " + target + ")" };',
+'  } catch (err) {',
+'    return { error: "Write failed: " + err.message };',
+'  } finally {',
+'    lock.releaseLock();',
+'  }',
+'}',
+'',
+'function deleteMiscEntry(ss, param) {',
+'  var lock = LockService.getScriptLock();',
+'  if (!lock.tryLock(30000)) return { error: "Busy - try again" };',
+'  try {',
+'    var sh = ss.getSheetByName(MISC_TAB);',
+'    if (!sh) return { error: "Tab [" + MISC_TAB + "] not found" };',
+'    var col  = miscCols_(sh, false);',
+'    var vals = sh.getDataRange().getValues();',
+'    var id   = String(param.misc_id || "").trim();',
+'    var target = -1, i;',
+'    if (id && col.id >= 0) {',
+'      for (i = 1; i < vals.length; i++) {',
+'        if (String(vals[i][col.id]) === id) { target = i + 1; break; }',
+'      }',
+'      if (target < 0) return { error: "Entry not found - it may already be deleted. Refresh and try again." };',
+'    } else {',
+'      // Older rows without an ID: delete by row number, but only if the content still matches',
+'      var rn = parseInt(param.misc_row, 10);',
+'      if (!rn || rn < 2 || rn > vals.length) return { error: "Row not found. Refresh and try again." };',
+'      var r = vals[rn - 1];',
+'      var same = String(r[col.party] || "").trim() === String(param.misc_party || "").trim()',
+'              && String(r[col.amount] === null ? "" : r[col.amount]).trim() === String(param.misc_amount || "").trim()',
+'              && miscDateKey_(r[col.date]) === miscDateKey_(param.misc_date);',
+'      if (!same) return { error: "The sheet has changed since this page loaded. Refresh and try again." };',
+'      target = rn;',
+'    }',
+'    sh.deleteRow(target);',
+'    SpreadsheetApp.flush();',
+'    return { ok: true, msg: "Entry deleted" };',
+'  } catch (err) {',
+'    return { error: "Delete failed: " + err.message };',
+'  } finally {',
+'    lock.releaseLock();',
+'  }',
+'}',
 ].join('\n');
 // ── DATA NORMALISATION ───────────────────────────────────────────────
 // These functions convert raw rows from GAS (or demo data) into a
@@ -2583,6 +2757,7 @@ async function loadData() {
     // Electricity workbook ID is hardcoded in GAS
     fetchTab(url, 'elec_meter', 'Meter',             ''),
     fetchTab(url, 'elec_solar', 'Solar',             ''),
+    fetchTab(url, 'misc_read',  'Misc',              ''),
   ]);
 
   if (res[0].status === 'fulfilled') {
@@ -2659,6 +2834,15 @@ async function loadData() {
     S.elMeter = []; S.elSolar = []; S.elLoaded = false;
     var er = res[7].status === 'rejected' ? res[7] : res[8];
     errs.electricity = er.reason ? er.reason.message : 'Could not load Electricity data';
+  }
+
+  if (res[9].status === 'fulfilled') {
+    S.misc       = (res[9].value || []).map(normalMisc);
+    S.miscLoaded = true;
+  } else {
+    S.misc       = [];
+    S.miscLoaded = false;
+    errs.misc    = res[9].reason ? res[9].reason.message : 'Could not load Miscellaneous data';
   }
 
   S.errors      = errs;
@@ -2786,6 +2970,7 @@ function render() {
   else if (S.tab==='tr') h+=renderTesting();
   else if (S.tab==='mo') h+=renderMould();
   else if (S.tab==='el') h+=renderElectricity();
+  else if (S.tab==='ms') h+=renderMisc();
   else if (S.tab==='dbg') h+=renderDebug();
 
   pg.innerHTML=h;
@@ -3139,12 +3324,8 @@ function renderTesting() {
         || a.product.localeCompare(b.product);
   });
 
-  var cc = rows.map(function(r){return r.compCorr;}).filter(function(v){return v!==null;});
-  var avg = cc.length ? cc.reduce(function(t,v){return t+v;},0)/cc.length : null;
   h += '<div style="padding:14px 20px 0"><div class="kpi-grid">'
-    + kpi('Tests',          rows.length,                          '', '#1A6FC4', '🧪')
-    + kpi('Avg Strength (Corrected)', fx(avg,2),                  '', '#0F9E6E', '📊')
-    + kpi('Min / Max (Corrected)', cc.length ? fx(Math.min.apply(null,cc),2)+' / '+fx(Math.max.apply(null,cc),2) : '—', '', '#E8A020', '↕')
+    + kpi('Tests', rows.length, '', '#1A6FC4', '🧪')
     + '</div></div>';
 
   h += '<div class="tw" style="margin-top:8px">';
@@ -3421,6 +3602,146 @@ function renderElectricity() {
     if (pg) { obs.observe(pg, { childList: true, subtree: true }); alignAll(); }
   });
 })();
+
+
+// ── MISCELLANEOUS ────────────────────────────────────────────────────
+function normalMisc(r) {
+  return {
+    id:        String(r.id || ''),
+    row:       r.row || 0,
+    date:      anyDateToFmt(r['Date']),
+    enteredBy: String(r['Entered By'] || ''),
+    party:     String(r['Party Name'] || ''),
+    amount:    (r['Amount'] === null || r['Amount'] === undefined) ? '' : String(r['Amount']),
+    remarks:   String(r['Remarks'] || ''),
+  };
+}
+
+/** Generic JSONP call to the Apps Script (used for add / delete) */
+function miscCall(register, params) {
+  var base = S.cfg.scriptUrl.trim().replace(/[?&].*$/, '');
+  return new Promise(function(resolve, reject) {
+    var cb = '_ms_' + Date.now() + '_' + Math.floor(Math.random()*1000), script;
+    var timer = setTimeout(function(){
+      delete window[cb]; if (script && script.parentNode) script.parentNode.removeChild(script);
+      reject(new Error('Request timed out. Check your connection.'));
+    }, 20000);
+    window[cb] = function(data) {
+      clearTimeout(timer); delete window[cb]; if (script && script.parentNode) script.parentNode.removeChild(script);
+      if (data && data.error) reject(new Error(data.error)); else resolve(data);
+    };
+    var q = '?register=' + encodeURIComponent(register) + '&tab=';
+    Object.keys(params).forEach(function(k){ q += '&' + k + '=' + encodeURIComponent(params[k]); });
+    script = document.createElement('script');
+    script.src = base + q + '&callback=' + cb + '&t=' + Date.now();
+    script.onerror = function(){ clearTimeout(timer); delete window[cb]; reject(new Error('Script load failed — verify the /exec URL.')); };
+    document.head.appendChild(script);
+  });
+}
+
+function showMsResult(ok, msg) {
+  var el = document.getElementById('ms-result'); if (!el) return;
+  el.className = 'au-result ' + (ok ? 'ok' : 'err');
+  el.textContent = msg; el.style.display = 'block';
+  if (ok) setTimeout(function(){ if (el.classList.contains('ok')) el.style.display = 'none'; }, 5000);
+}
+
+function renderMiscList() {
+  var rows = S.misc.slice().sort(function(a,b){
+    return (dateSortKey(b.date) - dateSortKey(a.date)) || (b.row - a.row);
+  });
+  var h = '<div class="card-head"><div class="card-title">All Miscellaneous Entries</div>'
+    + '<span style="font-size:11px;color:var(--ink-lt)">' + rows.length + ' entr' + (rows.length===1?'y':'ies') + ' · recent first</span></div>';
+  if (!S.miscLoaded) {
+    h += pendingNotice('Miscellaneous Data Not Available',
+      (S.errors && S.errors.misc ? esc(S.errors.misc) + ' — ' : '') + 'Redeploy the Apps Script (New deployment), update the URL in config.json and refresh.');
+    return h;
+  }
+  if (!rows.length) {
+    return h + '<div class="empty"><span class="empty-ico">🗂</span>No entries yet. Use the form above to add the first one.</div>';
+  }
+  var total = rows.reduce(function(t,r){ var n = Number(r.amount); return t + (r.amount !== '' && !isNaN(n) ? n : 0); }, 0);
+  h += '<div style="padding:10px 18px 6px;font-size:12px;color:var(--ink-mid)">Total Amount: <strong style="font-size:15px;color:var(--slate)">₹' + total.toLocaleString('en-IN',{maximumFractionDigits:2}) + '</strong></div>';
+  h += '<div class="tw"><table><thead><tr><th>Date</th><th>Entered By</th><th>Party Name</th>'
+    + '<th>Amount</th><th>Remarks</th><th>Action</th></tr></thead><tbody>';
+  rows.forEach(function(r, i) {
+    h += '<tr>'
+      + '<td class="td-muted">' + esc(r.date) + '</td>'
+      + '<td class="td-bold">' + esc(r.enteredBy) + '</td>'
+      + '<td>' + esc(r.party || '—') + '</td>'
+      + '<td class="td-green">' + (r.amount !== '' && !isNaN(Number(r.amount)) ? '₹' + Number(r.amount).toLocaleString('en-IN',{maximumFractionDigits:2}) : esc(r.amount || '—')) + '</td>'
+      + '<td class="td-muted" style="white-space:pre-wrap;max-width:360px">' + esc(r.remarks || '—') + '</td>'
+      + '<td><button class="btn" style="padding:5px 10px;font-size:11px;color:var(--red);border:1px solid var(--redBd);background:var(--redBg)" '
+      + 'onclick="deleteMisc(' + S.misc.indexOf(r) + ',this)">🗑 Delete</button></td></tr>';
+  });
+  return h + '</tbody></table></div>';
+}
+function updateMiscList() {
+  var el = document.getElementById('ms-list');
+  if (el) el.innerHTML = renderMiscList();
+}
+
+function renderMisc() {
+  var h = '<div style="max-width:620px;margin:0 auto;width:100%"><div class="au-card">';
+  h += '<div class="au-head"><div class="au-head-title">Miscellaneous</div>'
+    + '<div class="au-head-sub">Record an entry · saved directly to Google Sheets</div></div>';
+  h += '<div class="au-body"><div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">'
+    + '<div class="au-field"><label class="au-label">Entered By <span>*</span></label>'
+    + '<select class="au-select" id="ms-by"><option value="">— Select —</option>'
+    + '<option value="Gaurav">Gaurav</option><option value="Saurabh">Saurabh</option></select></div>'
+    + '<div class="au-field"><label class="au-label">Date <span>*</span></label>'
+    + '<input type="date" class="au-input" id="ms-date" value="' + dateToISO(today) + '"></div></div>';
+  h += '<div class="au-field"><label class="au-label">Party Name</label>'
+    + '<input type="text" class="au-input" id="ms-party" placeholder="Enter party name" autocomplete="off"></div>';
+  h += '<div class="au-field"><label class="au-label">Amount</label>'
+    + '<div class="au-amount-wrap"><span class="au-prefix">₹</span><input type="number" class="au-input" id="ms-amount" placeholder="0" step="any" inputmode="decimal" autocomplete="off"></div></div>';
+  h += '<div class="au-field"><label class="au-label">Remarks</label>'
+    + '<textarea class="au-textarea" id="ms-remarks" rows="5" style="min-height:130px" placeholder="Notes or details…"></textarea></div>';
+  h += '</div><div class="au-footer"><button class="au-submit" id="ms-submit" onclick="submitMisc()">'
+    + '<span>✓</span> Submit Entry</button><div id="ms-result" style="display:none" class="au-result"></div></div>';
+  h += '</div></div>';
+  h += '<div class="card" id="ms-list" style="margin-top:14px;overflow:hidden">' + renderMiscList() + '</div>';
+  return h;
+}
+
+function submitMisc() {
+  if (!S.cfg.scriptUrl) { showMsResult(false, 'No connection. Click ⚡ Connect first.'); return; }
+  function v(id){ return ((document.getElementById(id)||{}).value || '').trim(); }
+  var by = v('ms-by'), dateISO = v('ms-date');
+  if (!by)      { showMsResult(false, 'Please select who is entering this record.'); return; }
+  if (!dateISO) { showMsResult(false, 'Date is required.'); return; }
+  var amtV = v('ms-amount');
+  if (amtV !== '' && isNaN(Number(amtV))) { showMsResult(false, 'Amount must be a number.'); return; }
+  var btn = document.getElementById('ms-submit');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin">↻</span> Saving…'; }
+  miscCall('misc_add', { misc_by: by, misc_date: isoToFmt(dateISO), misc_party: v('ms-party'),
+                         misc_amount: v('ms-amount'), misc_remarks: v('ms-remarks') })
+    .then(function(res) {
+      ['ms-party','ms-amount','ms-remarks'].forEach(function(id){ var e = document.getElementById(id); if (e) e.value = ''; });
+      var de = document.getElementById('ms-date'); if (de) de.value = dateToISO(today);
+      showMsResult(true, '✓ Saved! ' + (res.msg || ''));
+      return fetchTab(S.cfg.scriptUrl, 'misc_read', 'Misc', '');
+    })
+    .then(function(rows) { S.misc = (rows || []).map(normalMisc); S.miscLoaded = true; updateMiscList(); })
+    .catch(function(e) { showMsResult(false, 'Error: ' + e.message); })
+    .then(function() {
+      var b = document.getElementById('ms-submit');
+      if (b) { b.disabled = false; b.innerHTML = '<span>✓</span> Submit Entry'; }
+    });
+}
+
+function deleteMisc(idx, btn) {
+  var r = S.misc[idx]; if (!r) return;
+  if (!confirm('Delete this entry permanently?\n\n' + r.date + ' · ' + r.enteredBy + (r.party ? ' · ' + r.party : '') + (r.amount ? ' · ' + r.amount : '') + '\n\nIt will also be removed from the Google Sheet.')) return;
+  if (btn) { btn.disabled = true; btn.textContent = 'Deleting…'; }
+  miscCall('misc_delete', { misc_id: r.id, misc_row: r.row, misc_party: r.party, misc_amount: r.amount, misc_date: r.date })
+    .then(function() { return fetchTab(S.cfg.scriptUrl, 'misc_read', 'Misc', ''); })
+    .then(function(rows) { S.misc = (rows || []).map(normalMisc); S.miscLoaded = true; updateMiscList(); showMsResult(true, '✓ Entry deleted from the dashboard and the sheet.'); })
+    .catch(function(e) {
+      if (btn) { btn.disabled = false; btn.textContent = '🗑 Delete'; }
+      showMsResult(false, 'Error: ' + e.message);
+    });
+}
 
 
 // ── 2. MONTHLY INWARD ────────────────────────────────────────────────
@@ -5126,8 +5447,8 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// Auto-refresh live data every 5 minutes
-setInterval(function(){ if (S.isLive) loadData(); }, 5 * 60 * 1000);
+// Auto-refresh live data every 10 minutes
+setInterval(function(){ if (S.isLive) loadData(); }, 10 * 60 * 1000);
 
 // Show a loading state immediately while config.json is being fetched
 // bootstrapConfig() will call updateHeader() + render() once config is ready
